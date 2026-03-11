@@ -1,0 +1,49 @@
+# Dependencies
+/vendor/
+/node_modules/
+
+# Environment & secrets
+/.env
+/.env.backup
+/.env.production
+/.env.*.local
+
+# Laravel
+/storage/framework/cache/*
+!/storage/framework/cache/.gitignore
+/storage/framework/sessions/*
+!/storage/framework/sessions/.gitignore
+/storage/framework/views/*
+!/storage/framework/views/.gitignore
+/storage/logs/*
+!/storage/logs/.gitignore
+/storage/app/*
+!/storage/app/.gitignore
+/bootstrap/cache/*
+!/bootstrap/cache/.gitignore
+
+# Testing
+.phpunit.result.cache
+.phpunit.cache/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Local config
+Homestead.json
+Homestead.yaml
+auth.json
+
+# Composer
+composer.phar
+
+# Database
+*.sqlite
+*.sqlite-journal
+
+# Build / cache
+.phpactor.json
