@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\CheckoutController;
+use App\Http\Controllers\WixController;
 use App\Http\Controllers\Api\V1\OrderController;
 use App\Http\Controllers\Api\V1\PayPalIpnController;
 use App\Http\Controllers\Api\V1\ProductController;
@@ -11,9 +12,11 @@ use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
-| API v1 Routes
+| API Routes
 |--------------------------------------------------------------------------
 */
+
+Route::post('/wix_webhook', [WixController::class, 'handleWixWebhooks']);
 
 Route::prefix('v1')->group(function () {
 
@@ -42,6 +45,7 @@ Route::prefix('v1')->group(function () {
         Route::post('products/{productId}/model/upload-glb', [ProductModelController::class, 'uploadGlb']);
         Route::post('products/{productId}/model/upload-image', [ProductModelController::class, 'uploadImage']);
         Route::get('products/{productId}/model/status', [ProductModelController::class, 'status']);
+        Route::post('products/{productId}/model/retry', [ProductModelController::class, 'retry']);
         Route::get('products/{productId}/model/glb', [ProductModelController::class, 'downloadGlb']);
 
         // Orders

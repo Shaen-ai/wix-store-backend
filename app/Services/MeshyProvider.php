@@ -9,7 +9,7 @@ class MeshyProvider implements ImageTo3DProvider
 {
     public function __construct(
         private readonly string $apiKey,
-        private readonly string $baseUrl = 'https://api.meshy.ai/v1',
+        private readonly string $baseUrl = 'https://api.meshy.ai/openapi/v1',
     ) {}
 
     public function submit(array $imagePaths, ?string $texturePrompt = null): string
@@ -19,27 +19,37 @@ class MeshyProvider implements ImageTo3DProvider
             throw new \RuntimeException('At least one image path is required');
         }
 
-        foreach ($imagePaths as $path) {
-            if (!file_exists($path)) {
-                throw new \RuntimeException("Source image not found: {$path}");
-            }
+        $firstPath = $imagePaths[0];
+        if (!file_exists($firstPath)) {
+            throw new \RuntimeException("Source image not found: {$firstPath}");
         }
 
-        $keys = ['image', 'image_2', 'image_3', 'image_4'];
-        $request = Http::withHeaders([
-            'Authorization' => "Bearer {$this->apiKey}",
-        ]);
+        $ext = strtolower(pathinfo($firstPath, PATHINFO_EXTENSION));
+        if (in_array($ext, ['avif', 'webp'])) {
+            throw new \RuntimeException('Image must be JPEG or PNG for Meshy. AVIF/WebP conversion failed. Ensure ImageMagick or PHP GD with libavif is installed.');
+        }
+        $mime = match ($ext) {
+            'jpg', 'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            default => 'image/jpeg',
+        };
 
-        $params = ['output_format' => 'glb'];
+        $imageData = base64_encode(file_get_contents($firstPath));
+        $imageUrl = "data:{$mime};base64,{$imageData}";
+
+        $payload = [
+            'image_url' => $imageUrl,
+            'should_texture' => true,
+        ];
+
         if ($texturePrompt !== null && $texturePrompt !== '') {
-            $params['texture_prompt'] = mb_substr($texturePrompt, 0, 600);
-        }
-        foreach ($imagePaths as $i => $imagePath) {
-            $key = $keys[$i];
-            $request = $request->attach($key, fopen($imagePath, 'r'), basename($imagePath));
+            $payload['texture_prompt'] = mb_substr($texturePrompt, 0, 600);
         }
 
-        $response = $request->post("{$this->baseUrl}/image-to-3d", $params);
+        $response = Http::withHeaders([
+            'Authorization' => "Bearer {$this->apiKey}",
+            'Content-Type' => 'application/json',
+        ])->post("{$this->baseUrl}/image-to-3d", $payload);
 
         $response->throw();
 
@@ -64,9 +74,11 @@ class MeshyProvider implements ImageTo3DProvider
             'FAILED' => 'failed',
         ];
 
+        $glbUrl = $data['model_urls']['glb'] ?? $data['model_url'] ?? null;
+
         return [
             'status' => $statusMap[$providerStatus] ?? 'processing',
-            'glb_download_url' => $data['model_url'] ?? null,
+            'glb_download_url' => $glbUrl,
         ];
     }
 }

@@ -10,6 +10,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        $middleware->validateCsrfTokens(except: [
+            'api/wix_webhook*',
+        ]);
         $middleware->alias([
             'wix.auth' => \App\Http\Middleware\WixAuth::class,
         ]);

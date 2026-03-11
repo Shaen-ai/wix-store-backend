@@ -35,6 +35,10 @@ class ProductController extends Controller
             });
         }
 
+        if ($request->query('storefront')) {
+            $query->whereHas('model', fn ($q) => $q->where('generation_status', 'done'));
+        }
+
         $products = $query->orderBy('created_at', 'desc')->paginate(50);
 
         $data = $products->getCollection()->map(function (Product $p) use ($currency) {
@@ -73,13 +77,25 @@ class ProductController extends Controller
             'description' => 'nullable|string|max:5000',
             'base_price_cents' => 'required|integer|min:1',
             'base_currency' => 'nullable|string|size:3',
+            'quantity_available' => 'nullable|integer|min:0',
         ];
 
         $isMultipart = $request->hasFile('glb') || $request->hasFile('images');
         if ($isMultipart) {
             $rules['glb'] = 'nullable|file|max:51200|mimes:glb,bin|mimetypes:model/gltf-binary,application/octet-stream';
             $rules['images'] = 'nullable|array|min:1|max:4';
-            $rules['images.*'] = 'required|file|mimes:jpg,jpeg,png,heic,heif|max:20480';
+            $rules['images.*'] = [
+                'required',
+                'file',
+                'max:20480',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    $ext = strtolower($value->getClientOriginalExtension() ?? '');
+                    $allowed = ['jpg', 'jpeg', 'png', 'heic', 'heif', 'avif', 'webp'];
+                    if (!in_array($ext, $allowed)) {
+                        $fail('Invalid image format. Allowed: JPEG, PNG, HEIC, AVIF, WebP.');
+                    }
+                },
+            ];
         } else {
             $rules['images'] = 'nullable|array';
             $rules['images.*'] = 'string|url';
@@ -95,6 +111,7 @@ class ProductController extends Controller
             'base_currency' => $validated['base_currency'] ?? $tenant->settings->base_currency ?? 'EUR',
             'images_json' => $isMultipart ? [] : ($validated['images'] ?? []),
             'is_active' => true,
+            'quantity_available' => $validated['quantity_available'] ?? null,
         ]);
 
         if ($request->hasFile('glb')) {
@@ -171,10 +188,11 @@ class ProductController extends Controller
             'images' => 'nullable|array',
             'images.*' => 'string|url',
             'is_active' => 'nullable|boolean',
+            'quantity_available' => 'nullable|integer|min:0',
         ]);
 
         $updateData = [];
-        foreach (['title', 'description', 'base_price_cents', 'base_currency', 'is_active'] as $field) {
+        foreach (['title', 'description', 'base_price_cents', 'base_currency', 'is_active', 'quantity_available'] as $field) {
             if (array_key_exists($field, $validated)) {
                 $updateData[$field] = $validated[$field];
             }
@@ -208,6 +226,7 @@ class ProductController extends Controller
             'base_currency' => $displayCurrency ?? $p->base_currency,
             'images' => $p->images,
             'is_active' => $p->is_active,
+            'quantity_available' => $p->quantity_available,
             'model' => null,
             'created_at' => $p->created_at?->toISOString(),
             'updated_at' => $p->updated_at?->toISOString(),

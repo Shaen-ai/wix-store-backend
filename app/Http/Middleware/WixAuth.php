@@ -16,15 +16,11 @@ class WixAuth
     {
         $token = $request->bearerToken();
 
-        if (!$token) {
-            return response()->json(['error' => 'Unauthorized – missing Wix token'], 401);
-        }
-
-        // Dev bypass: when APP_ENV=local, accept "dev" or WIX_DEV_INSTANCE_TOKEN
+        // Dev bypass: when APP_ENV=local, allow no token or "dev" token
         if (app()->environment('local')) {
             $devToken = config('services.wix.dev_instance_token', 'dev');
             $devInstanceId = config('services.wix.dev_instance_id', 'dev-local');
-            if ($token === $devToken) {
+            if (!$token || $token === $devToken) {
                 $wixSiteId = $devInstanceId;
                 $tenant = Tenant::firstOrCreate(
                     ['wix_site_id' => $wixSiteId],
@@ -37,9 +33,13 @@ class WixAuth
                     ]
                 );
                 $request->attributes->set('tenant', $tenant);
-                $request->attributes->set('instanceToken', $token);
+                $request->attributes->set('instanceToken', $token ?? $devToken);
                 return $next($request);
             }
+        }
+
+        if (!$token) {
+            return response()->json(['error' => 'Unauthorized – missing Wix token'], 401);
         }
 
         $payload = $this->decodeWixToken($token);

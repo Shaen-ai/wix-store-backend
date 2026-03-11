@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Contracts\ImageTo3DProvider;
 use App\Models\ProductModel;
 use App\Models\TenantSetting;
+use App\Services\ImageService;
 use App\Services\MeshyProvider;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -24,7 +25,7 @@ class GenerateModelFromImage implements ShouldQueue
         private readonly ProductModel $productModel,
     ) {}
 
-    public function handle(): void
+    public function handle(ImageService $imageService): void
     {
         $model = $this->productModel->fresh();
 
@@ -33,7 +34,9 @@ class GenerateModelFromImage implements ShouldQueue
         }
 
         $settings = TenantSetting::where('tenant_id', $model->tenant_id)->first();
-        $apiKey = $settings?->image_to_3d_api_key;
+        $apiKey = $settings?->image_to_3d_api_key
+            ?: config('services.image_to_3d.api_key')
+            ?: env('IMAGE_TO_3D_API_KEY');
 
         if (!$apiKey) {
             $model->update([
@@ -43,7 +46,7 @@ class GenerateModelFromImage implements ShouldQueue
             return;
         }
 
-        $provider = $this->resolveProvider($settings);
+        $provider = $this->resolveProvider($apiKey);
 
         try {
             $model->update(['generation_status' => 'processing']);
@@ -51,6 +54,9 @@ class GenerateModelFromImage implements ShouldQueue
             $disk = $model->glb_disk ?: config('filesystems.default', 'local');
             $imagePaths = $model->source_images_json ?? ($model->source_image_path ? [$model->source_image_path] : []);
             $imagePaths = array_map(fn (string $p) => Storage::disk($disk)->path($p), $imagePaths);
+
+            // Convert AVIF/WebP/HEIC to JPEG before sending to Meshy
+            $imagePaths = array_map(fn (string $p) => $imageService->convertToPngOrJpeg($p), $imagePaths);
 
             if (empty($imagePaths)) {
                 throw new \RuntimeException('No source images found');
@@ -87,10 +93,8 @@ class GenerateModelFromImage implements ShouldQueue
         }
     }
 
-    private function resolveProvider(TenantSetting $settings): ImageTo3DProvider
+    private function resolveProvider(string $apiKey): ImageTo3DProvider
     {
-        return new MeshyProvider(
-            apiKey: $settings->image_to_3d_api_key,
-        );
+        return new MeshyProvider(apiKey: $apiKey);
     }
 }

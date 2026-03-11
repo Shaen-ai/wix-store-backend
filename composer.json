@@ -4,6 +4,7 @@
     "description": "3D Store Gallery – Laravel 11 API backend",
     "require": {
         "php": "^8.2",
+        "firebase/php-jwt": "^6.10",
         "laravel/framework": "^11.0",
         "intervention/image": "^3.0",
         "guzzlehttp/guzzle": "^7.8"

@@ -4,6 +4,7 @@ return [
     'wix' => [
         'app_id' => env('WIX_APP_ID', ''),
         'app_secret' => env('WIX_APP_SECRET', ''),
+        '3d_store_public_key' => env('WIX_3D_STORE_PUBLIC_KEY', ''),
         'dev_instance_token' => env('WIX_DEV_INSTANCE_TOKEN', 'dev'),
         'dev_instance_id' => env('WIX_DEV_INSTANCE_ID', 'dev-local'),
         'dev_comp_id' => env('WIX_DEV_COMP_ID', 'comp-dev-local'),

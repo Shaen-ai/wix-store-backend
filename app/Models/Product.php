@@ -17,12 +17,14 @@ class Product extends Model
         'base_currency',
         'images_json',
         'is_active',
+        'quantity_available',
     ];
 
     protected $casts = [
         'images_json' => 'array',
         'base_price_cents' => 'integer',
         'is_active' => 'boolean',
+        'quantity_available' => 'integer',
     ];
 
     public function tenant(): BelongsTo

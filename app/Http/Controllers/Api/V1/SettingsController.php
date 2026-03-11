@@ -40,6 +40,7 @@ class SettingsController extends Controller
             'darken_bg' => true,
             'show_name' => 'show',
             'show_price' => 'show',
+            'show_availability' => 'hide',
             'card_border' => false,
         ];
 
@@ -103,6 +104,7 @@ class SettingsController extends Controller
             'widget_settings.darken_bg' => 'nullable|boolean',
             'widget_settings.show_name' => 'nullable|string|in:show,hide',
             'widget_settings.show_price' => 'nullable|string|in:show,hide',
+            'widget_settings.show_availability' => 'nullable|string|in:show,hide',
             'widget_settings.card_border' => 'nullable|boolean',
         ]);
 

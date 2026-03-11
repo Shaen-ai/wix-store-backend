@@ -34,14 +34,17 @@ class PollModelGeneration implements ShouldQueue
 
         $settings = TenantSetting::where('tenant_id', $model->tenant_id)->first();
         $jobId = $model->generation_meta_json['provider_job_id'] ?? null;
+        $apiKey = $settings?->image_to_3d_api_key
+            ?: config('services.image_to_3d.api_key')
+            ?: env('IMAGE_TO_3D_API_KEY');
 
-        if (!$jobId || !$settings?->image_to_3d_api_key) {
+        if (!$jobId || !$apiKey) {
             $model->update(['generation_status' => 'failed']);
             return;
         }
 
         try {
-            $provider = new MeshyProvider(apiKey: $settings->image_to_3d_api_key);
+            $provider = new MeshyProvider(apiKey: $apiKey);
             $result = $provider->poll($jobId);
 
             if ($result['status'] === 'done' && !empty($result['glb_download_url'])) {
