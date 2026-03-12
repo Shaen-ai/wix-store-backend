@@ -14,7 +14,7 @@ class WixAuth
      */
     public function handle(Request $request, Closure $next): Response
     {
-        $token = $request->bearerToken();
+        $token = $request->header('Authorization');
 
         // Dev bypass: when APP_ENV=local, allow no token or "dev" token
         if (app()->environment('local')) {
