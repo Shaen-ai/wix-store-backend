@@ -63,6 +63,7 @@ class SettingsController extends Controller
 
         $meta = [
             'instance_token' => $request->attributes->get('instanceToken'),
+            'instance_id' => $tenant->wix_site_id ?? null,
         ];
 
         return response()->json([

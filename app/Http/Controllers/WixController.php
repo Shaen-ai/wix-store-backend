@@ -24,25 +24,36 @@ class WixController extends Controller
             return response()->json(['error' => 'Method not allowed'], 405);
         }
 
+        if (empty($publicKey)) {
+            \Log::error('Wix webhook: WIX_3D_STORE_PUBLIC_KEY is not configured');
+            return response()->json(['error' => 'Server misconfiguration'], 500);
+        }
+
         try {
             $decoded   = JWT::decode($body, new Key($publicKey, 'RS256'));
             $event     = json_decode($decoded->data);
             $eventData = json_decode($event->data ?? '{}');
             $identity  = json_decode($event->identity ?? '{}');
         } catch (Exception $e) {
+            \Log::warning('Wix webhook JWT decode failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
             return response()->json(['type' => 'error', 'message' => $e->getMessage()], 400);
         }
 
         $instanceId = $event->instanceId ?? null;
         if (!$instanceId) {
+            \Log::warning('Wix webhook: missing instanceId', ['event' => $event]);
             return response()->json(['error' => 'Missing instanceId'], 400);
         }
 
-        // Log webhook for audit
-        $this->logWebhook($event, $eventData, $identity);
+        try {
+            // Log webhook for audit
+            $this->logWebhook($event, $eventData, $identity);
 
-        // 3D Store–specific handling
-        switch ($event->eventType) {
+            // 3D Store–specific handling
+            switch ($event->eventType) {
             case 'AppInstalled':
                 $this->handleAppInstalled($instanceId, $eventData);
                 break;
@@ -63,6 +74,14 @@ class WixController extends Controller
             case 'SitePropertiesUpdated':
                 // Optional: sync site metadata if needed later
                 break;
+        }
+        } catch (Exception $e) {
+            \Log::error('Wix webhook processing failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'instanceId' => $instanceId ?? null,
+            ]);
+            return response()->json(['error' => 'Processing failed'], 500);
         }
 
         return response('', 200);
