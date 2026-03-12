@@ -13,7 +13,11 @@ return [
     ]),
     'allowed_origins_patterns' => [
         '#^https://.*\.wix\.com$#',
+        '#^https://.*\.wixsite\.com$#',
+        '#^https://.*\.wixstatic\.com$#',
+        '#^https://.*\.wix-code\.com$#',
         '#^https://.*\.editorx\.com$#',
+        '#^https://.*\.editor\.wix\.com$#',
     ],
     'allowed_headers' => ['*'],
     'exposed_headers' => [],
