@@ -77,20 +77,31 @@ class WixAuth
     private function decodeWixToken(string $token): ?array
     {
         $parts = explode('.', $token);
+        $count = count($parts);
 
-        if (count($parts) === 3) {
-            $signatureB64 = $parts[2];
-            $payloadB64 = $parts[1];
-        } elseif (count($parts) === 2) {
-            $signatureB64 = $parts[0];
-            $payloadB64 = $parts[1];
+        if ($count === 4) {
+            // Wix 4-part format: sig.header.payload.extra or header.payload.sig.extra
+            // Try part index 2 as payload (most common)
+            $signatureB64  = $parts[0];
+            $payloadB64    = $parts[2];
+            $signingInput  = $parts[1] . '.' . $parts[2];
+        } elseif ($count === 3) {
+            // JWT format: header.payload.signature — signed over "header.payload"
+            $signatureB64  = $parts[2];
+            $payloadB64    = $parts[1];
+            $signingInput  = $parts[0] . '.' . $parts[1];
+        } elseif ($count === 2) {
+            // Wix 2-part format: signature.payload — signed over payload
+            $signatureB64  = $parts[0];
+            $payloadB64    = $parts[1];
+            $signingInput  = $parts[1];
         } else {
             return null;
         }
 
         $secret = config('services.wix.app_secret');
         if ($secret) {
-            $expectedSig = hash_hmac('sha256', $payloadB64, $secret, true);
+            $expectedSig = hash_hmac('sha256', $signingInput, $secret, true);
             $actualSig = base64_decode(strtr($signatureB64, '-_', '+/'));
             if (!$actualSig || !hash_equals($expectedSig, $actualSig)) {
                 return null;
