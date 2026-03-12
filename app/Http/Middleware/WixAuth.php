@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\Tenant;
+use App\Models\WidgetSetting;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -11,10 +12,12 @@ class WixAuth
 {
     /**
      * Validate the Wix access token and resolve the tenant.
+     * When no token: allow X-Wix-Comp-Id only for editor mode (like form widget).
+     * Resolves tenant from WidgetSetting by widget_instance_id, or uses dev tenant.
      */
     public function handle(Request $request, Closure $next): Response
     {
-        $token = $request->header('Authorization');
+        $token = $this->resolveAuthHeader($request);
 
         // Dev bypass: when APP_ENV=local, allow no token or "dev" token
         if (app()->environment('local')) {
@@ -38,34 +41,73 @@ class WixAuth
             }
         }
 
-        if (!$token) {
-            return response()->json(['error' => 'Unauthorized – missing Wix token'], 401);
+        if ($token) {
+            $payload = $this->decodeWixToken($token);
+
+            if ($payload && !empty($payload['instanceId'])) {
+                $wixSiteId = $payload['instanceId'];
+
+                $tenant = Tenant::firstOrCreate(
+                    ['wix_site_id' => $wixSiteId],
+                    ['plan' => 'free']
+                );
+
+                $tenant->settings()->firstOrCreate(
+                    ['tenant_id' => $tenant->id],
+                    [
+                        'base_currency' => 'EUR',
+                    ]
+                );
+
+                $request->attributes->set('tenant', $tenant);
+                $request->attributes->set('instanceToken', $token);
+
+                return $next($request);
+            }
         }
 
-        $payload = $this->decodeWixToken($token);
+        // Editor mode: no token but X-Wix-Comp-Id present (Wix embed URL may omit instance)
+        $compId = $request->header('X-Wix-Comp-Id')
+            ?? $request->query('comp_id')
+            ?? $request->query('compId');
 
-        if (!$payload || empty($payload['instanceId'])) {
-            return response()->json(['error' => 'Unauthorized – invalid token'], 401);
+        if ($compId && trim((string) $compId) !== '') {
+            $ws = WidgetSetting::where('widget_instance_id', trim((string) $compId))->first();
+            if ($ws) {
+                $tenant = $ws->tenant;
+                $request->attributes->set('tenant', $tenant);
+                $request->attributes->set('instanceToken', null);
+                return $next($request);
+            }
+
+            $devInstanceId = config('services.wix.dev_instance_id', 'dev-local');
+            $tenant = Tenant::firstOrCreate(
+                ['wix_site_id' => $devInstanceId],
+                ['plan' => 'free']
+            );
+            $tenant->settings()->firstOrCreate(
+                ['tenant_id' => $tenant->id],
+                ['base_currency' => 'EUR']
+            );
+            $request->attributes->set('tenant', $tenant);
+            $request->attributes->set('instanceToken', null);
+            return $next($request);
         }
 
-        $wixSiteId = $payload['instanceId'];
+        return response()->json(['error' => 'Unauthorized – missing Wix token or X-Wix-Comp-Id'], 401);
+    }
 
-        $tenant = Tenant::firstOrCreate(
-            ['wix_site_id' => $wixSiteId],
-            ['plan' => 'free']
-        );
+    private function resolveAuthHeader(Request $request): ?string
+    {
+        $auth = $request->header('Authorization')
+            ?? $request->header('X-Authorization')
+            ?? $request->header('X-Instance-Token');
 
-        $tenant->settings()->firstOrCreate(
-            ['tenant_id' => $tenant->id],
-            [
-                'base_currency' => 'EUR',
-            ]
-        );
+        if (!$auth && isset($_SERVER['HTTP_AUTHORIZATION'])) {
+            $auth = $_SERVER['HTTP_AUTHORIZATION'];
+        }
 
-        $request->attributes->set('tenant', $tenant);
-        $request->attributes->set('instanceToken', $token);
-
-        return $next($request);
+        return $auth ?: null;
     }
 
     /**
