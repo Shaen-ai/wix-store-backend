@@ -71,30 +71,34 @@ class WixAuth
     /**
      * Decode and verify the Wix instance token.
      *
-     * Wix instance tokens are base64url-encoded, dot-separated:
-     *   signature.payload (2-part) or header.payload.signature (JWT, 3-part)
+     * New Wix format: OauthNG.JWS.<header>.<payload>.<signature>  (5 parts)
+     * Legacy JWT format: <header>.<payload>.<signature>            (3 parts)
+     * Legacy Wix format: <signature>.<payload>                     (2 parts)
+     *
+     * The payload JSON has shape: {"data":"{\"instance\":{\"instanceId\":\"...\"}}", ...}
+     * instanceId is nested inside the stringified "data" field.
      */
     private function decodeWixToken(string $token): ?array
     {
         $parts = explode('.', $token);
         $count = count($parts);
 
-        if ($count === 4) {
-            // Wix 4-part format: sig.header.payload.extra or header.payload.sig.extra
-            // Try part index 2 as payload (most common)
-            $signatureB64  = $parts[0];
-            $payloadB64    = $parts[2];
-            $signingInput  = $parts[1] . '.' . $parts[2];
+        if ($count === 5 && $parts[0] === 'OauthNG' && $parts[1] === 'JWS') {
+            // New Wix format: OauthNG.JWS.header.payload.signature
+            $headerB64    = $parts[2];
+            $payloadB64   = $parts[3];
+            $signatureB64 = $parts[4];
+            $signingInput = $parts[2] . '.' . $parts[3];
         } elseif ($count === 3) {
-            // JWT format: header.payload.signature — signed over "header.payload"
-            $signatureB64  = $parts[2];
-            $payloadB64    = $parts[1];
-            $signingInput  = $parts[0] . '.' . $parts[1];
+            // Standard JWT: header.payload.signature
+            $payloadB64   = $parts[1];
+            $signatureB64 = $parts[2];
+            $signingInput = $parts[0] . '.' . $parts[1];
         } elseif ($count === 2) {
-            // Wix 2-part format: signature.payload — signed over payload
-            $signatureB64  = $parts[0];
-            $payloadB64    = $parts[1];
-            $signingInput  = $parts[1];
+            // Legacy Wix: signature.payload
+            $signatureB64 = $parts[0];
+            $payloadB64   = $parts[1];
+            $signingInput = $parts[1];
         } else {
             return null;
         }
@@ -102,18 +106,26 @@ class WixAuth
         $secret = config('services.wix.app_secret');
         if ($secret) {
             $expectedSig = hash_hmac('sha256', $signingInput, $secret, true);
-            $actualSig = base64_decode(strtr($signatureB64, '-_', '+/'));
+            $actualSig   = base64_decode(strtr($signatureB64, '-_', '+/'));
             if (!$actualSig || !hash_equals($expectedSig, $actualSig)) {
                 return null;
             }
         }
 
         $json = base64_decode(strtr($payloadB64, '-_', '+/'));
-
         if (!$json) return null;
 
         $payload = json_decode($json, true);
+        if (!is_array($payload)) return null;
 
-        return is_array($payload) ? $payload : null;
+        // New format nests instance data as a JSON string inside "data"
+        if (isset($payload['data']) && is_string($payload['data'])) {
+            $data = json_decode($payload['data'], true);
+            if (isset($data['instance']) && is_array($data['instance'])) {
+                return $data['instance'];
+            }
+        }
+
+        return $payload;
     }
 }
