@@ -56,8 +56,11 @@ class ProductModelController extends Controller
         $tenant = $request->attributes->get('tenant');
         $product = Product::where('tenant_id', $tenant->id)->findOrFail($productId);
 
-        $files = $request->file('images') ?? ($request->file('image') ? [$request->file('image')] : null);
-        $request->merge(['images' => $files]);
+        $files = $request->file('images') ?? $request->file('images[]') ?? ($request->file('image') ? [$request->file('image')] : null);
+        if (is_array($files)) {
+            $files = array_values(array_filter($files, fn ($f) => $f instanceof \Illuminate\Http\UploadedFile && $f->isValid()));
+        }
+        $request->merge(['images' => $files ?: []]);
 
         $request->validate([
             'images' => 'required|array|min:1|max:4',

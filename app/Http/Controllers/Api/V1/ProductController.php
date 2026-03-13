@@ -80,7 +80,11 @@ class ProductController extends Controller
             'quantity_available' => 'nullable|integer|min:0',
         ];
 
-        $isMultipart = $request->hasFile('glb') || $request->hasFile('images');
+        $imageFiles = $this->getImageFiles($request);
+        $isMultipart = $request->hasFile('glb') || $imageFiles;
+        if ($imageFiles) {
+            $request->merge(['images' => $imageFiles]);
+        }
         if ($isMultipart) {
             $rules['glb'] = 'nullable|file|max:51200|mimes:glb,bin|mimetypes:model/gltf-binary,application/octet-stream';
             $rules['images'] = 'nullable|array|min:1|max:4';
@@ -116,7 +120,7 @@ class ProductController extends Controller
 
         if ($request->hasFile('glb')) {
             $this->attachGlbToProduct($request, $tenant->id, $product);
-        } elseif ($request->hasFile('images')) {
+        } elseif ($this->getImageFiles($request)) {
             $this->attachImagesToProduct($request, $tenant->id, $product);
         }
 
@@ -141,9 +145,20 @@ class ProductController extends Controller
         );
     }
 
+    private function getImageFiles(Request $request): ?array
+    {
+        $files = $request->file('images') ?? $request->file('images[]');
+        if (!$files) {
+            return null;
+        }
+        $arr = is_array($files) ? $files : [$files];
+        $arr = array_values(array_filter($arr, fn ($f) => $f instanceof \Illuminate\Http\UploadedFile && $f->isValid()));
+        return $arr ?: null;
+    }
+
     private function attachImagesToProduct(Request $request, int $tenantId, Product $product): void
     {
-        $files = $request->file('images');
+        $files = $this->getImageFiles($request) ?? [];
         $disk = config('filesystems.default', 'local');
         $imagePaths = [];
 
