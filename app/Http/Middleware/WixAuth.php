@@ -75,6 +75,10 @@ class WixAuth
             $ws = WidgetSetting::where('widget_instance_id', trim((string) $compId))->first();
             if ($ws) {
                 $tenant = $ws->tenant;
+                $tenant->settings()->firstOrCreate(
+                    ['tenant_id' => $tenant->id],
+                    ['base_currency' => 'EUR']
+                );
                 $request->attributes->set('tenant', $tenant);
                 $request->attributes->set('instanceToken', null);
                 return $next($request);

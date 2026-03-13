@@ -86,7 +86,23 @@ class ProductController extends Controller
             $request->merge(['images' => $imageFiles]);
         }
         if ($isMultipart) {
-            $rules['glb'] = 'nullable|file|max:51200|mimes:glb,bin|mimetypes:model/gltf-binary,application/octet-stream';
+            $rules['glb'] = [
+                'nullable',
+                'file',
+                'max:51200',
+                function (string $attr, mixed $value, \Closure $fail): void {
+                    if (!$value instanceof \Illuminate\Http\UploadedFile || !$value->isValid()) {
+                        return;
+                    }
+                    $ext = strtolower($value->getClientOriginalExtension() ?? '');
+                    $mime = $value->getMimeType();
+                    $allowedExt = ['glb', 'bin'];
+                    $allowedMime = ['model/gltf-binary', 'application/octet-stream'];
+                    if (!in_array($ext, $allowedExt) && !in_array($mime, $allowedMime)) {
+                        $fail('GLB file must have .glb/.bin extension or model/gltf-binary MIME type.');
+                    }
+                },
+            ];
             $rules['images'] = 'nullable|array|min:1|max:4';
             $rules['images.*'] = [
                 'required',
@@ -112,7 +128,7 @@ class ProductController extends Controller
             'title' => $validated['title'],
             'description' => $validated['description'] ?? '',
             'base_price_cents' => $validated['base_price_cents'],
-            'base_currency' => $validated['base_currency'] ?? $tenant->settings->base_currency ?? 'EUR',
+            'base_currency' => $validated['base_currency'] ?? $tenant->settings?->base_currency ?? 'EUR',
             'images_json' => $isMultipart ? [] : ($validated['images'] ?? []),
             'is_active' => true,
             'quantity_available' => $validated['quantity_available'] ?? null,
@@ -248,10 +264,15 @@ class ProductController extends Controller
         ];
 
         if ($p->model) {
+            try {
+                $glbUrl = $p->model->getGlbTemporaryUrl();
+            } catch (\Throwable) {
+                $glbUrl = null;
+            }
             $data['model'] = [
                 'id' => $p->model->id,
                 'product_id' => $p->model->product_id,
-                'glb_url' => $p->model->getGlbTemporaryUrl(),
+                'glb_url' => $glbUrl,
                 'source_type' => $p->model->source_type,
                 'generation_status' => $p->model->generation_status,
                 'created_at' => $p->model->created_at?->toISOString(),

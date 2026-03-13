@@ -46,10 +46,12 @@ class MeshyProvider implements ImageTo3DProvider
             $payload['texture_prompt'] = mb_substr($texturePrompt, 0, 600);
         }
 
-        $response = Http::withHeaders([
-            'Authorization' => "Bearer {$this->apiKey}",
-            'Content-Type' => 'application/json',
-        ])->post("{$this->baseUrl}/image-to-3d", $payload);
+        $response = Http::timeout(60)
+            ->withHeaders([
+                'Authorization' => "Bearer {$this->apiKey}",
+                'Content-Type' => 'application/json',
+            ])
+            ->post("{$this->baseUrl}/image-to-3d", $payload);
 
         $response->throw();
 
@@ -58,9 +60,11 @@ class MeshyProvider implements ImageTo3DProvider
 
     public function poll(string $jobId): array
     {
-        $response = Http::withHeaders([
-            'Authorization' => "Bearer {$this->apiKey}",
-        ])->get("{$this->baseUrl}/image-to-3d/{$jobId}");
+        $response = Http::timeout(15)
+            ->withHeaders([
+                'Authorization' => "Bearer {$this->apiKey}",
+            ])
+            ->get("{$this->baseUrl}/image-to-3d/{$jobId}");
 
         $response->throw();
 
