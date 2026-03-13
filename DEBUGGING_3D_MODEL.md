@@ -1,6 +1,8 @@
-# Debugging 3D Model Generation (Stuck on "queued")
+# Debugging 3D Model Generation (Stuck on "queued" or "processing")
 
-When `generation_status` stays **"queued"** and never moves to "processing" or "done", the `GenerateModelFromImage` job is not being executed. Follow these steps to find the cause.
+When `generation_status` stays **"queued"** or **"processing"** and never moves to "done", the queue worker may not be running. Follow these steps to find the cause.
+
+**Quick check (no tinker needed):** Run `php check-queue.php` from the backend directory.
 
 ---
 
@@ -24,8 +26,10 @@ Keep this terminal running. For production, use a process manager (supervisor, s
 ## 2. Verify queue configuration
 
 ```bash
-# Check current queue driver
-php artisan tinker --execute="echo config('queue.default');"
+# Quick check (no tinker needed)
+php check-queue.php
+
+# Or, if tinker is installed: php artisan tinker --execute="echo config('queue.default');"
 # Should be "database" (or "sync" for immediate execution)
 ```
 
@@ -42,7 +46,8 @@ QUEUE_CONNECTION=database
 cd backend
 
 # Count pending jobs in the database
-php artisan tinker --execute="echo \DB::table('jobs')->count() . ' jobs pending';"
+php check-queue.php
+# Or: php artisan tinker --execute="echo \DB::table('jobs')->count();"  (requires: composer require laravel/tinker --dev)
 
 # List failed jobs (if any)
 php artisan queue:failed
@@ -134,7 +139,7 @@ Then trigger a new product creation or run the job manually. Look for:
 | Check | Command / Action |
 |-------|------------------|
 | Queue worker running? | `php artisan queue:work` in a terminal |
-| Jobs in queue? | `php artisan tinker --execute="echo \DB::table('jobs')->count();"` |
+| Jobs in queue? | `php check-queue.php` or `php artisan tinker --execute="echo \DB::table('jobs')->count();"` |
 | Failed jobs? | `php artisan queue:failed` |
 | API key set? | Check `tenant_settings.image_to_3d_api_key` |
 | Source images? | Check `product_models.source_images_json` and file existence |
