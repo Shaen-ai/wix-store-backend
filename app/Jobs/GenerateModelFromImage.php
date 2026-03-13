@@ -64,7 +64,10 @@ class GenerateModelFromImage implements ShouldQueue
 
             $product = $model->product;
             $texturePrompt = null;
-            if ($product) {
+            $userNotes = $model->generation_meta_json['user_notes'] ?? null;
+            if ($userNotes && trim($userNotes) !== '') {
+                $texturePrompt = trim($userNotes);
+            } elseif ($product) {
                 $parts = array_filter([$product->title ?? '', $product->description ?? '']);
                 if (!empty($parts)) {
                     $texturePrompt = implode('. ', $parts);
@@ -76,7 +79,7 @@ class GenerateModelFromImage implements ShouldQueue
             $model->update([
                 'generation_meta_json' => array_merge(
                     $model->generation_meta_json ?? [],
-                    ['provider_job_id' => $jobId]
+                    ['provider_job_id' => $jobId],
                 ),
             ]);
 

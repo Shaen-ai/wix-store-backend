@@ -64,6 +64,7 @@ class ProductModelController extends Controller
 
         $request->validate([
             'images' => 'required|array|min:1|max:4',
+            'notes' => 'nullable|string|max:600',
             'images.*' => [
                 'required',
                 'file',
@@ -93,6 +94,8 @@ class ProductModelController extends Controller
             $imagePaths[] = $imagePath;
         }
 
+        $userNotes = $request->input('notes') ? mb_substr(trim($request->input('notes')), 0, 600) : null;
+
         $model = ProductModel::updateOrCreate(
             ['product_id' => $product->id],
             [
@@ -101,7 +104,7 @@ class ProductModelController extends Controller
                 'source_image_path' => $imagePaths[0] ?? null,
                 'source_images_json' => $imagePaths,
                 'generation_status' => 'processing',
-                'generation_meta_json' => [],
+                'generation_meta_json' => array_filter(['user_notes' => $userNotes]),
             ]
         );
 
@@ -185,9 +188,10 @@ class ProductModelController extends Controller
             return response()->json(['error' => 'No image-based model to retry'], 422);
         }
 
+        $existingNotes = $model->generation_meta_json['user_notes'] ?? null;
         $model->update([
             'generation_status' => 'queued',
-            'generation_meta_json' => [],
+            'generation_meta_json' => array_filter(['user_notes' => $existingNotes]),
         ]);
 
         GenerateModelFromImage::dispatch($model)->afterResponse();
