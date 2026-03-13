@@ -52,6 +52,7 @@ class PollModelGeneration implements ShouldQueue
                 $disk = config('filesystems.default', 'local');
                 $path = "tenants/{$model->tenant_id}/models/{$model->product_id}_generated.glb";
 
+                Storage::disk($disk)->makeDirectory(dirname($path));
                 Storage::disk($disk)->put($path, $glbContent);
 
                 $model->update([
@@ -100,17 +101,22 @@ class PollModelGeneration implements ShouldQueue
         } catch (\Throwable $e) {
             Log::error('Poll model generation failed', ['error' => $e->getMessage()]);
 
-            if ($this->attempts() >= $this->tries) {
+            $msg = $e->getMessage();
+            $isStorageError = str_contains($msg, 'Unable to create a directory')
+                || str_contains($msg, 'Permission denied')
+                || str_contains($msg, 'failed to open stream');
+
+            if ($isStorageError || $this->attempts() >= $this->tries) {
                 $model->update([
                     'generation_status' => 'failed',
                     'generation_meta_json' => array_merge(
                         $model->generation_meta_json ?? [],
-                        ['error' => $e->getMessage()]
+                        ['error' => $msg]
                     ),
                 ]);
-            } else {
-                $this->release(60);
+                return;
             }
+            $this->release(60);
         }
     }
 }

@@ -149,6 +149,7 @@ class ProductModelController extends Controller
                         $glbContent = \Illuminate\Support\Facades\Http::timeout(120)->get($result['glb_download_url'])->body();
                         $disk = config('filesystems.default', 'local');
                         $path = "tenants/{$model->tenant_id}/models/{$model->product_id}_generated.glb";
+                        \Illuminate\Support\Facades\Storage::disk($disk)->makeDirectory(dirname($path));
                         \Illuminate\Support\Facades\Storage::disk($disk)->put($path, $glbContent);
                         $model->update(['generation_status' => 'done', 'glb_disk' => $disk, 'glb_path' => $path]);
                         $data['generation_status'] = 'done';
@@ -160,7 +161,15 @@ class ProductModelController extends Controller
                     }
                 }
             } catch (\Throwable $e) {
-                // Ignore; queue worker will eventually poll
+                $msg = $e->getMessage();
+                if (str_contains($msg, 'Unable to create a directory') || str_contains($msg, 'Permission denied')) {
+                    $model->update([
+                        'generation_status' => 'failed',
+                        'generation_meta_json' => array_merge($model->generation_meta_json ?? [], ['error' => $msg]),
+                    ]);
+                    $data['generation_status'] = 'failed';
+                    $data['generation_error'] = $msg;
+                }
             }
         }
 

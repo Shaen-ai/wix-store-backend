@@ -134,12 +134,27 @@ Then trigger a new product creation or run the job manually. Look for:
 
 ---
 
+## 9. Storage permission errors
+
+If you see `Unable to create a directory at .../storage/app/private/tenants/X/models`:
+
+```bash
+php artisan storage:prepare
+sudo chown -R www-data:www-data storage
+sudo chmod -R 775 storage
+```
+
+Run the queue worker as `www-data`: `sudo -u www-data php artisan queue:work`
+
+---
+
 ## Summary checklist
 
 | Check | Command / Action |
 |-------|------------------|
-| Queue worker running? | `php artisan queue:work` in a terminal |
-| Jobs in queue? | `php check-queue.php` or `php artisan tinker --execute="echo \DB::table('jobs')->count();"` |
+| Queue worker running? | `sudo -u www-data php artisan queue:work` |
+| Storage prepared? | `php artisan storage:prepare` + chown/chmod |
+| Jobs in queue? | `php check-queue.php` |
 | Failed jobs? | `php artisan queue:failed` |
 | API key set? | Check `tenant_settings.image_to_3d_api_key` |
 | Source images? | Check `product_models.source_images_json` and file existence |

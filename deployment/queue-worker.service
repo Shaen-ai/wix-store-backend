@@ -1,0 +1,22 @@
+# systemd alternative to Supervisor
+# Copy to /etc/systemd/system/ then:
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable wix-3dstore-worker
+#   sudo systemctl start wix-3dstore-worker
+#
+# Adjust paths if your app lives elsewhere.
+
+[Unit]
+Description=3D Store Queue Worker
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/var/www/wix-3dstore/backend
+ExecStart=/usr/bin/php /var/www/wix-3dstore/backend/artisan queue:work --sleep=3 --tries=3
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
