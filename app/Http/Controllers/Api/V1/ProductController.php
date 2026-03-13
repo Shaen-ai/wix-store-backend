@@ -86,6 +86,7 @@ class ProductController extends Controller
             $request->merge(['images' => $imageFiles]);
         }
         if ($isMultipart) {
+            $rules['notes'] = 'nullable|string|max:600';
             $rules['glb'] = [
                 'nullable',
                 'file',
@@ -137,7 +138,7 @@ class ProductController extends Controller
         if ($request->hasFile('glb')) {
             $this->attachGlbToProduct($request, $tenant->id, $product);
         } elseif ($this->getImageFiles($request)) {
-            $this->attachImagesToProduct($request, $tenant->id, $product);
+            $this->attachImagesToProduct($request, $tenant->id, $product, $request->input('notes'));
         }
 
         return response()->json(['data' => $this->formatProduct($product->fresh()->load('model'))], 201);
@@ -172,7 +173,7 @@ class ProductController extends Controller
         return $arr ?: null;
     }
 
-    private function attachImagesToProduct(Request $request, int $tenantId, Product $product): void
+    private function attachImagesToProduct(Request $request, int $tenantId, Product $product, ?string $notes = null): void
     {
         $files = $this->getImageFiles($request) ?? [];
         $disk = config('filesystems.default', 'local');
@@ -190,6 +191,8 @@ class ProductController extends Controller
             $imagePaths[] = $imagePath;
         }
 
+        $userNotes = $notes ? mb_substr(trim($notes), 0, 600) : null;
+
         $model = ProductModel::updateOrCreate(
             ['product_id' => $product->id],
             [
@@ -198,7 +201,7 @@ class ProductController extends Controller
                 'source_image_path' => $imagePaths[0] ?? null,
                 'source_images_json' => $imagePaths,
                 'generation_status' => 'processing',
-                'generation_meta_json' => [],
+                'generation_meta_json' => array_filter(['user_notes' => $userNotes]),
             ]
         );
 
@@ -244,6 +247,46 @@ class ProductController extends Controller
         $product->delete();
 
         return response()->json(['message' => 'Product deleted']);
+    }
+
+    public function duplicate(Request $request, int $id): JsonResponse
+    {
+        $tenant = $request->attributes->get('tenant');
+        $source = Product::where('tenant_id', $tenant->id)->with('model')->findOrFail($id);
+
+        $newProduct = Product::create([
+            'tenant_id' => $tenant->id,
+            'title' => $source->title . ' (Copy)',
+            'description' => $source->description ?? '',
+            'base_price_cents' => $source->base_price_cents,
+            'base_currency' => $source->base_currency,
+            'images_json' => $source->images_json ?? [],
+            'is_active' => $source->is_active,
+            'quantity_available' => $source->quantity_available,
+        ]);
+
+        $sourceModel = $source->model;
+        if ($sourceModel && $sourceModel->generation_status === 'done' && $sourceModel->glb_path) {
+            $disk = Storage::disk($sourceModel->glb_disk);
+            if ($disk->exists($sourceModel->glb_path)) {
+                $content = $disk->get($sourceModel->glb_path);
+                $targetDisk = config('filesystems.default', 'local');
+                $ext = pathinfo($sourceModel->glb_path, PATHINFO_EXTENSION) ?: 'glb';
+                $newPath = "tenants/{$tenant->id}/models/" . \Illuminate\Support\Str::random(40) . '.' . $ext;
+                Storage::disk($targetDisk)->put($newPath, $content);
+
+                ProductModel::create([
+                    'tenant_id' => $tenant->id,
+                    'product_id' => $newProduct->id,
+                    'glb_disk' => $targetDisk,
+                    'glb_path' => $newPath,
+                    'source_type' => 'uploaded_glb',
+                    'generation_status' => 'done',
+                ]);
+            }
+        }
+
+        return response()->json(['data' => $this->formatProduct($newProduct->fresh()->load('model'))], 201);
     }
 
     private function formatProduct(Product $p, ?string $displayCurrency = null): array

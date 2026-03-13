@@ -40,6 +40,7 @@ Route::prefix('v1')->group(function () {
         Route::get('products/{id}', [ProductController::class, 'show']);
         Route::put('products/{id}', [ProductController::class, 'update']);
         Route::delete('products/{id}', [ProductController::class, 'destroy']);
+        Route::post('products/{id}/duplicate', [ProductController::class, 'duplicate']);
 
         // Product models (3D)
         Route::post('products/{productId}/model/upload-glb', [ProductModelController::class, 'uploadGlb']);
