@@ -166,12 +166,12 @@ class ProductController extends Controller
                 'source_type' => 'generated_from_image',
                 'source_image_path' => $imagePaths[0] ?? null,
                 'source_images_json' => $imagePaths,
-                'generation_status' => 'queued',
+                'generation_status' => 'processing',
                 'generation_meta_json' => [],
             ]
         );
 
-        GenerateModelFromImage::dispatch($model);
+        GenerateModelFromImage::dispatch($model)->afterResponse();
     }
 
     public function update(Request $request, int $id): JsonResponse

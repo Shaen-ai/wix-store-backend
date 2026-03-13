@@ -1,0 +1,11 @@
+# Add this to your nginx server block to fix 413 Content Too Large
+# when creating products with images (up to 4 × 20MB) or GLB files (50MB).
+#
+# Example:
+#   server {
+#       ...
+#       client_max_body_size 105M;
+#       ...
+#   }
+
+client_max_body_size 105M;
