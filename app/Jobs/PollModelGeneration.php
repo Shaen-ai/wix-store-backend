@@ -10,7 +10,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Http;
+use App\Services\RemoteAssetDownloader;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
@@ -48,12 +48,10 @@ class PollModelGeneration implements ShouldQueue
             $result = $provider->poll($jobId);
 
             if ($result['status'] === 'done' && !empty($result['glb_download_url'])) {
-                $glbContent = Http::timeout(120)->get($result['glb_download_url'])->body();
                 $disk = config('filesystems.default', 'local');
                 $path = "tenants/{$model->tenant_id}/models/{$model->product_id}_generated.glb";
 
-                Storage::disk($disk)->makeDirectory(dirname($path));
-                Storage::disk($disk)->put($path, $glbContent);
+                RemoteAssetDownloader::streamUrlToDisk($result['glb_download_url'], $disk, $path, 300);
 
                 $model->update([
                     'generation_status' => 'done',
@@ -96,7 +94,8 @@ class PollModelGeneration implements ShouldQueue
                 return;
             }
 
-            $delay = min(60 * $this->attempts(), 300);
+            // Frequent polls so we persist the GLB soon after Meshy finishes (Meshy generation itself is still minutes).
+            $delay = min(12 + (int) floor($pollCount / 8) * 6, 45);
             $this->release($delay);
         } catch (\Throwable $e) {
             Log::error('Poll model generation failed', ['error' => $e->getMessage()]);

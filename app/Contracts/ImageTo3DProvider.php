@@ -8,7 +8,7 @@ interface ImageTo3DProvider
      * Submit one or more images for 3D model generation (multi-view supported).
      *
      * @param array<string> $imagePaths Absolute paths to image files (1-4 images from different views).
-     * @param string|null $texturePrompt Optional text (e.g. title + description) to guide the AI on which item to model. Max 600 chars.
+     * @param string|null $texturePrompt Optional user notes only — guides texturing when set; otherwise image-guided texturing is used.
      * @return string The provider's job/task ID.
      */
     public function submit(array $imagePaths, ?string $texturePrompt = null): string;

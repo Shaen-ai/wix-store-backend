@@ -27,20 +27,19 @@ return [
         'provider' => env('IMAGE_TO_3D_PROVIDER', 'meshy'),
         'api_key' => env('IMAGE_TO_3D_API_KEY', ''),
         /**
-         * Meshy image-to-3d tuning (see https://docs.meshy.ai/api/image-to-3d).
-         * Defaults favor small GLBs for web (was ~7MB with implicit standard + all formats).
+         * Meshy image-to-3d (see https://docs.meshy.ai/api/image-to-3d).
+         * Defaults match mebel/metrics_platform `src/app/api/meshy/generate/route.ts` (implicit standard + GLB-only).
          */
         'meshy' => [
-            /** `lowpoly` (smaller, Meshy-optimized) or `standard` (uses polycount/remesh below). */
-            'model_type' => env('MESHY_MODEL_TYPE', 'lowpoly'),
-            /** false drops texturing for much smaller files (plain mesh). */
+            /** `standard` (same as mebel) or `lowpoly` for smaller Meshy-optimized meshes. */
+            'model_type' => env('MESHY_MODEL_TYPE', 'standard'),
             'should_texture' => filter_var(env('MESHY_SHOULD_TEXTURE', true), FILTER_VALIDATE_BOOLEAN),
             'enable_pbr' => filter_var(env('MESHY_ENABLE_PBR', false), FILTER_VALIDATE_BOOLEAN),
             /** Used when model_type is standard only. */
             'ai_model' => env('MESHY_AI_MODEL', 'latest'),
             'should_remesh' => filter_var(env('MESHY_SHOULD_REMESH', true), FILTER_VALIDATE_BOOLEAN),
             'topology' => env('MESHY_TOPOLOGY', 'triangle'),
-            'target_polycount' => (int) env('MESHY_TARGET_POLYCOUNT', 2500),
+            'target_polycount' => (int) env('MESHY_TARGET_POLYCOUNT', 5000),
         ],
     ],
 ];

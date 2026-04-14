@@ -7,6 +7,7 @@ use App\Jobs\GenerateModelFromImage;
 use App\Models\Product;
 use App\Models\ProductModel;
 use App\Services\ImageService;
+use App\Services\RemoteAssetDownloader;
 use App\Services\TenantPlanService;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
@@ -157,11 +158,9 @@ class ProductModelController extends Controller
                     $provider = new \App\Services\MeshyProvider(apiKey: $apiKey);
                     $result = $provider->poll($model->generation_meta_json['provider_job_id']);
                     if ($result['status'] === 'done' && !empty($result['glb_download_url'])) {
-                        $glbContent = \Illuminate\Support\Facades\Http::timeout(120)->get($result['glb_download_url'])->body();
                         $disk = config('filesystems.default', 'local');
                         $path = "tenants/{$model->tenant_id}/models/{$model->product_id}_generated.glb";
-                        \Illuminate\Support\Facades\Storage::disk($disk)->makeDirectory(dirname($path));
-                        \Illuminate\Support\Facades\Storage::disk($disk)->put($path, $glbContent);
+                        RemoteAssetDownloader::streamUrlToDisk($result['glb_download_url'], $disk, $path, 300);
                         $model->update(['generation_status' => 'done', 'glb_disk' => $disk, 'glb_path' => $path]);
                         $data['generation_status'] = 'done';
                     } elseif ($result['status'] === 'failed') {

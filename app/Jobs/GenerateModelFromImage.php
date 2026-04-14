@@ -62,17 +62,9 @@ class GenerateModelFromImage implements ShouldQueue
                 throw new \RuntimeException('No source images found');
             }
 
-            $product = $model->product;
-            $texturePrompt = null;
+            // Only optional user notes become texture_prompt. Title/description steered Meshy away from the photos.
             $userNotes = $model->generation_meta_json['user_notes'] ?? null;
-            if ($userNotes && trim($userNotes) !== '') {
-                $texturePrompt = trim($userNotes);
-            } elseif ($product) {
-                $parts = array_filter([$product->title ?? '', $product->description ?? '']);
-                if (!empty($parts)) {
-                    $texturePrompt = implode('. ', $parts);
-                }
-            }
+            $texturePrompt = ($userNotes && trim($userNotes) !== '') ? trim($userNotes) : null;
 
             $jobId = $provider->submit($imagePaths, $texturePrompt);
 
@@ -83,7 +75,7 @@ class GenerateModelFromImage implements ShouldQueue
                 ),
             ]);
 
-            PollModelGeneration::dispatch($model)->delay(now()->addSeconds(30));
+            PollModelGeneration::dispatch($model)->delay(now()->addSeconds(10));
         } catch (\Throwable $e) {
             Log::error('Image-to-3D submit failed', ['error' => $e->getMessage()]);
             $model->update([

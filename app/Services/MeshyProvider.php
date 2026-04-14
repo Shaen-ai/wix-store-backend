@@ -39,7 +39,7 @@ class MeshyProvider implements ImageTo3DProvider
 
         $payload = $this->buildImageTo3dPayload($imageUrl, $texturePrompt);
 
-        $response = Http::timeout(60)
+        $response = Http::timeout(120)
             ->withHeaders([
                 'Authorization' => "Bearer {$this->apiKey}",
                 'Content-Type' => 'application/json',
@@ -57,18 +57,19 @@ class MeshyProvider implements ImageTo3DProvider
     private function buildImageTo3dPayload(string $imageUrl, ?string $texturePrompt): array
     {
         $cfg = config('services.image_to_3d.meshy', []);
-        $modelType = strtolower((string) ($cfg['model_type'] ?? 'lowpoly')) === 'standard' ? 'standard' : 'lowpoly';
+        $modelType = strtolower((string) ($cfg['model_type'] ?? 'standard')) === 'lowpoly' ? 'lowpoly' : 'standard';
 
         $shouldTexture = (bool) ($cfg['should_texture'] ?? true);
+        $enablePbr = (bool) ($cfg['enable_pbr'] ?? false);
 
+        // Aligned with mebel/metrics_platform api/meshy/generate: GLB-only, texture on, PBR off, remesh + triangle + polycount.
         $payload = [
             'image_url' => $imageUrl,
             'target_formats' => ['glb'],
             'should_texture' => $shouldTexture,
         ];
-
-        if ($shouldTexture && !empty($cfg['enable_pbr'])) {
-            $payload['enable_pbr'] = true;
+        if ($shouldTexture) {
+            $payload['enable_pbr'] = $enablePbr;
         }
 
         if ($modelType === 'lowpoly') {
@@ -81,11 +82,13 @@ class MeshyProvider implements ImageTo3DProvider
             $payload['should_remesh'] = (bool) ($cfg['should_remesh'] ?? true);
             $topology = ($cfg['topology'] ?? 'triangle') === 'quad' ? 'quad' : 'triangle';
             $payload['topology'] = $topology;
-            $poly = (int) ($cfg['target_polycount'] ?? 2500);
+            $poly = (int) ($cfg['target_polycount'] ?? 5000);
             $payload['target_polycount'] = max(100, min(300_000, $poly));
         }
 
-        if ($shouldTexture && $texturePrompt !== null && $texturePrompt !== '') {
+        $texturePrompt = $texturePrompt !== null ? trim($texturePrompt) : '';
+        if ($shouldTexture && $texturePrompt !== '') {
+            // Optional user notes only — do not send title/description here (it steers colors away from the photos).
             $payload['texture_prompt'] = mb_substr($texturePrompt, 0, 600);
         }
 
