@@ -51,10 +51,13 @@ class TenantPlanService
         $key = $this->normalizedPlanKey($tenant->plan);
         $def = $this->definitionForTenant($tenant);
         $period = $this->currentPeriodYyyymm();
-        $usageRow = TenantUsageMonth::query()
-            ->where('tenant_id', $tenant->id)
-            ->where('period_yyyymm', $period)
-            ->first();
+
+        $stats = DB::selectOne(
+            'SELECT
+                (SELECT COUNT(*) FROM products WHERE tenant_id = ?) AS products_count,
+                (SELECT image_to_3d_count FROM tenant_usage_months WHERE tenant_id = ? AND period_yyyymm = ? LIMIT 1) AS image_to_3d_this_month',
+            [$tenant->id, $tenant->id, $period]
+        );
 
         return [
             'plan' => $key,
@@ -64,8 +67,8 @@ class TenantPlanService
                 'show_powered_by' => (bool) ($def['show_powered_by'] ?? false),
             ],
             'usage' => [
-                'products_count' => Product::query()->where('tenant_id', $tenant->id)->count(),
-                'image_to_3d_this_month' => (int) ($usageRow?->image_to_3d_count ?? 0),
+                'products_count' => (int) ($stats->products_count ?? 0),
+                'image_to_3d_this_month' => (int) ($stats->image_to_3d_this_month ?? 0),
             ],
             'usage_period_yyyymm' => $period,
         ];

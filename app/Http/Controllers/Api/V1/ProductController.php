@@ -45,6 +45,7 @@ class ProductController extends Controller
 
         $products = $query->orderBy('created_at', 'desc')->paginate(50);
 
+        // Clients load GLB via GET /products/{id}/model/glb — omit signed URLs (avoids S3 temporaryUrl per row).
         $data = $products->getCollection()->map(function (Product $p) use ($currency) {
             return $this->formatProduct($p, $currency);
         });
@@ -153,7 +154,9 @@ class ProductController extends Controller
             throw $e;
         }
 
-        return response()->json(['data' => $this->formatProduct($product->fresh()->load('model'))], 201);
+        return response()->json([
+            'data' => $this->formatProduct($product->fresh()->load('model')),
+        ], 201);
     }
 
     private function attachGlbToProduct(Request $request, int $tenantId, Product $product): void
@@ -258,7 +261,9 @@ class ProductController extends Controller
 
         $product->update($updateData);
 
-        return response()->json(['data' => $this->formatProduct($product->fresh()->load('model'))]);
+        return response()->json([
+            'data' => $this->formatProduct($product->fresh()->load('model')),
+        ]);
     }
 
     public function destroy(Request $request, int $id): JsonResponse
@@ -309,10 +314,12 @@ class ProductController extends Controller
             }
         }
 
-        return response()->json(['data' => $this->formatProduct($newProduct->fresh()->load('model'))], 201);
+        return response()->json([
+            'data' => $this->formatProduct($newProduct->fresh()->load('model')),
+        ], 201);
     }
 
-    private function formatProduct(Product $p, ?string $displayCurrency = null): array
+    private function formatProduct(Product $p, ?string $displayCurrency = null, bool $includeGlbSignedUrl = false): array
     {
         $data = [
             'id' => $p->id,
@@ -330,10 +337,13 @@ class ProductController extends Controller
         ];
 
         if ($p->model) {
-            try {
-                $glbUrl = $p->model->getGlbTemporaryUrl();
-            } catch (\Throwable) {
-                $glbUrl = null;
+            $glbUrl = null;
+            if ($includeGlbSignedUrl) {
+                try {
+                    $glbUrl = $p->model->getGlbTemporaryUrl();
+                } catch (\Throwable) {
+                    $glbUrl = null;
+                }
             }
             $data['model'] = [
                 'id' => $p->model->id,

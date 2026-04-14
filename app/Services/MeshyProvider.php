@@ -37,14 +37,7 @@ class MeshyProvider implements ImageTo3DProvider
         $imageData = base64_encode(file_get_contents($firstPath));
         $imageUrl = "data:{$mime};base64,{$imageData}";
 
-        $payload = [
-            'image_url' => $imageUrl,
-            'should_texture' => true,
-        ];
-
-        if ($texturePrompt !== null && $texturePrompt !== '') {
-            $payload['texture_prompt'] = mb_substr($texturePrompt, 0, 600);
-        }
+        $payload = $this->buildImageTo3dPayload($imageUrl, $texturePrompt);
 
         $response = Http::timeout(60)
             ->withHeaders([
@@ -56,6 +49,47 @@ class MeshyProvider implements ImageTo3DProvider
         $response->throw();
 
         return $response->json('result');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildImageTo3dPayload(string $imageUrl, ?string $texturePrompt): array
+    {
+        $cfg = config('services.image_to_3d.meshy', []);
+        $modelType = strtolower((string) ($cfg['model_type'] ?? 'lowpoly')) === 'standard' ? 'standard' : 'lowpoly';
+
+        $shouldTexture = (bool) ($cfg['should_texture'] ?? true);
+
+        $payload = [
+            'image_url' => $imageUrl,
+            'target_formats' => ['glb'],
+            'should_texture' => $shouldTexture,
+        ];
+
+        if ($shouldTexture && !empty($cfg['enable_pbr'])) {
+            $payload['enable_pbr'] = true;
+        }
+
+        if ($modelType === 'lowpoly') {
+            $payload['model_type'] = 'lowpoly';
+        } else {
+            $payload['model_type'] = 'standard';
+            $payload['ai_model'] = in_array($cfg['ai_model'] ?? 'latest', ['meshy-5', 'meshy-6', 'latest'], true)
+                ? ($cfg['ai_model'] ?? 'latest')
+                : 'latest';
+            $payload['should_remesh'] = (bool) ($cfg['should_remesh'] ?? true);
+            $topology = ($cfg['topology'] ?? 'triangle') === 'quad' ? 'quad' : 'triangle';
+            $payload['topology'] = $topology;
+            $poly = (int) ($cfg['target_polycount'] ?? 2500);
+            $payload['target_polycount'] = max(100, min(300_000, $poly));
+        }
+
+        if ($shouldTexture && $texturePrompt !== null && $texturePrompt !== '') {
+            $payload['texture_prompt'] = mb_substr($texturePrompt, 0, 600);
+        }
+
+        return $payload;
     }
 
     public function poll(string $jobId): array

@@ -49,7 +49,7 @@ class ProductModelController extends Controller
             'data' => [
                 'id' => $model->id,
                 'generation_status' => $model->generation_status,
-                'glb_url' => $model->getGlbTemporaryUrl(),
+                'glb_url' => null,
             ],
         ]);
     }
@@ -145,7 +145,7 @@ class ProductModelController extends Controller
         $data = [
             'id' => $model->id,
             'generation_status' => $model->generation_status,
-            'glb_url' => $model->generation_status === 'done' ? $model->getGlbTemporaryUrl() : null,
+            'glb_url' => null,
         ];
 
         // When processing, trigger a poll to Meshy so status updates (helps when queue worker may be slow)
@@ -164,7 +164,6 @@ class ProductModelController extends Controller
                         \Illuminate\Support\Facades\Storage::disk($disk)->put($path, $glbContent);
                         $model->update(['generation_status' => 'done', 'glb_disk' => $disk, 'glb_path' => $path]);
                         $data['generation_status'] = 'done';
-                        $data['glb_url'] = $model->fresh()->getGlbTemporaryUrl();
                     } elseif ($result['status'] === 'failed') {
                         $model->update(['generation_status' => 'failed', 'generation_meta_json' => array_merge($model->generation_meta_json ?? [], ['poll_error' => 'Provider returned failed'])]);
                         $data['generation_status'] = 'failed';
