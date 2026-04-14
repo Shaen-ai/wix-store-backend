@@ -6,7 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Jobs\GenerateModelFromImage;
 use App\Models\Product;
 use App\Models\ProductModel;
+use App\Models\Tenant;
 use App\Services\ImageService;
+use App\Services\TenantPlanService;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -15,6 +18,7 @@ class ProductController extends Controller
 {
     public function __construct(
         private readonly ImageService $imageService,
+        private readonly TenantPlanService $tenantPlanService,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -124,6 +128,8 @@ class ProductController extends Controller
 
         $validated = $request->validate($rules);
 
+        $this->tenantPlanService->assertCanAddProduct($tenant);
+
         $product = Product::create([
             'tenant_id' => $tenant->id,
             'title' => $validated['title'],
@@ -135,10 +141,16 @@ class ProductController extends Controller
             'quantity_available' => $validated['quantity_available'] ?? null,
         ]);
 
-        if ($request->hasFile('glb')) {
-            $this->attachGlbToProduct($request, $tenant->id, $product);
-        } elseif ($this->getImageFiles($request)) {
-            $this->attachImagesToProduct($request, $tenant->id, $product, $request->input('notes'));
+        try {
+            if ($request->hasFile('glb')) {
+                $this->attachGlbToProduct($request, $tenant->id, $product);
+            } elseif ($this->getImageFiles($request)) {
+                $this->attachImagesToProduct($request, $tenant, $product, $request->input('notes'));
+            }
+        } catch (HttpResponseException $e) {
+            $product->delete();
+
+            throw $e;
         }
 
         return response()->json(['data' => $this->formatProduct($product->fresh()->load('model'))], 201);
@@ -173,8 +185,9 @@ class ProductController extends Controller
         return $arr ?: null;
     }
 
-    private function attachImagesToProduct(Request $request, int $tenantId, Product $product, ?string $notes = null): void
+    private function attachImagesToProduct(Request $request, Tenant $tenant, Product $product, ?string $notes = null): void
     {
+        $tenantId = $tenant->id;
         $files = $this->getImageFiles($request) ?? [];
         $disk = config('filesystems.default', 'local');
         $imagePaths = [];
@@ -204,6 +217,14 @@ class ProductController extends Controller
                 'generation_meta_json' => array_filter(['user_notes' => $userNotes]),
             ]
         );
+
+        try {
+            $this->tenantPlanService->consumeImageTo3dGenerationOrFail($tenant);
+        } catch (HttpResponseException $e) {
+            $model->delete();
+
+            throw $e;
+        }
 
         GenerateModelFromImage::dispatch($model)->afterResponse();
     }
@@ -253,6 +274,8 @@ class ProductController extends Controller
     {
         $tenant = $request->attributes->get('tenant');
         $source = Product::where('tenant_id', $tenant->id)->with('model')->findOrFail($id);
+
+        $this->tenantPlanService->assertCanAddProduct($tenant);
 
         $newProduct = Product::create([
             'tenant_id' => $tenant->id,

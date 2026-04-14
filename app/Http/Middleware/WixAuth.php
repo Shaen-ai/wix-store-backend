@@ -27,7 +27,7 @@ class WixAuth
                 $wixSiteId = $devInstanceId;
                 $tenant = Tenant::firstOrCreate(
                     ['wix_site_id' => $wixSiteId],
-                    ['plan' => 'free']
+                    ['plan' => 'basic']
                 );
                 $tenant->settings()->firstOrCreate(
                     ['tenant_id' => $tenant->id],
@@ -49,7 +49,7 @@ class WixAuth
 
                 $tenant = Tenant::firstOrCreate(
                     ['wix_site_id' => $wixSiteId],
-                    ['plan' => 'free']
+                    ['plan' => 'basic']
                 );
 
                 $tenant->settings()->firstOrCreate(
@@ -87,7 +87,7 @@ class WixAuth
             $devInstanceId = config('services.wix.dev_instance_id', 'dev-local');
             $tenant = Tenant::firstOrCreate(
                 ['wix_site_id' => $devInstanceId],
-                ['plan' => 'free']
+                ['plan' => 'basic']
             );
             $tenant->settings()->firstOrCreate(
                 ['tenant_id' => $tenant->id],

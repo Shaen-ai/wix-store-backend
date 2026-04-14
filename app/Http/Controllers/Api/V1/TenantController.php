@@ -3,20 +3,25 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Services\TenantPlanService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class TenantController extends Controller
 {
-    public function me(Request $request): JsonResponse
+    public function me(Request $request, TenantPlanService $tenantPlanService): JsonResponse
     {
         $tenant = $request->attributes->get('tenant');
+        $summary = $tenantPlanService->usageSummary($tenant);
 
         return response()->json([
             'data' => [
                 'id' => $tenant->id,
                 'wix_site_id' => $tenant->wix_site_id,
-                'plan' => $tenant->plan,
+                'plan' => $summary['plan'],
+                'limits' => $summary['limits'],
+                'usage' => $summary['usage'],
+                'usage_period_yyyymm' => $summary['usage_period_yyyymm'],
                 'created_at' => $tenant->created_at,
             ],
         ]);

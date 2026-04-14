@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\WidgetSetting;
+use App\Services\TenantPlanService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -16,7 +17,7 @@ class SettingsController extends Controller
      * When source=widget: API provider fields (fx_provider, fx_api_key, image_to_3d_*) are excluded.
      * When source=dashboard or omitted: full settings including API providers.
      */
-    public function show(Request $request): JsonResponse
+    public function show(Request $request, TenantPlanService $tenantPlanService): JsonResponse
     {
         $tenant = $request->attributes->get('tenant');
         $compId = trim((string) ($request->query('comp_id') ?? ''));
@@ -59,6 +60,10 @@ class SettingsController extends Controller
             $settings['fx_api_key'] = $tenantSettings->fx_api_key ? '••••••' : '';
             $settings['image_to_3d_provider'] = $tenantSettings->image_to_3d_provider ?? 'meshy';
             $settings['image_to_3d_api_key'] = $tenantSettings->image_to_3d_api_key ? '••••••' : '';
+        }
+
+        if ($isWidget) {
+            $settings['show_powered_by'] = $tenantPlanService->showPoweredByForTenant($tenant);
         }
 
         $meta = [
@@ -147,7 +152,11 @@ class SettingsController extends Controller
 
         $widgetData = $request->input('widget_settings');
         if (!empty($widgetData) && is_array($widgetData)) {
-            unset($widgetData['default_currency'], $widgetData['base_currency']); // Currency from tenant only
+            unset(
+                $widgetData['default_currency'],
+                $widgetData['base_currency'],
+                $widgetData['show_powered_by'],
+            );
             WidgetSetting::updateOrCreate(
                 [
                     'tenant_id' => $tenant->id,
@@ -157,7 +166,7 @@ class SettingsController extends Controller
             );
         }
 
-        return $this->show($request);
+        return $this->show($request, app(TenantPlanService::class));
     }
 
     private function getDefaultCompId(): string

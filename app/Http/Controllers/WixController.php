@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Tenant;
 use App\Models\WixWebhook;
+use App\Services\TenantPlanService;
+use App\Services\WixPlanResolver;
 use Exception;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
@@ -64,7 +66,7 @@ class WixController extends Controller
 
             case 'PaidPlanPurchased':
             case 'PaidPlanChanged':
-                $this->handlePlanUpgrade($instanceId);
+                $this->handlePlanUpgrade($instanceId, $eventData);
                 break;
 
             case 'PaidPlanAutoRenewalCancelled':
@@ -111,7 +113,7 @@ class WixController extends Controller
     {
         $tenant = Tenant::firstOrCreate(
             ['wix_site_id' => $instanceId],
-            ['plan' => 'free']
+            ['plan' => 'basic']
         );
 
         $tenant->settings()->firstOrCreate(
@@ -125,13 +127,16 @@ class WixController extends Controller
         // Tenant data retained for potential reinstall; can add uninstalled_at later if needed
     }
 
-    private function handlePlanUpgrade(string $instanceId): void
+    private function handlePlanUpgrade(string $instanceId, mixed $eventData): void
     {
-        Tenant::where('wix_site_id', $instanceId)->update(['plan' => 'premium']);
+        $resolved = app(WixPlanResolver::class)->resolvePaidPlanFromEventData($eventData);
+        $raw = $resolved ?? config('wix_billing.default_paid_plan', 'business');
+        $plan = app(TenantPlanService::class)->normalizedPlanKey(is_string($raw) ? $raw : 'business');
+        Tenant::where('wix_site_id', $instanceId)->update(['plan' => $plan]);
     }
 
     private function handlePlanDowngrade(string $instanceId): void
     {
-        Tenant::where('wix_site_id', $instanceId)->update(['plan' => 'free']);
+        Tenant::where('wix_site_id', $instanceId)->update(['plan' => 'basic']);
     }
 }

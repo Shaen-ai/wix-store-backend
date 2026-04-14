@@ -15,7 +15,7 @@ class DevSeeder extends Seeder
     {
         $tenant = Tenant::firstOrCreate(
             ['wix_site_id' => config('services.wix.dev_instance_id', 'dev-local')],
-            ['plan' => 'free']
+            ['plan' => 'basic']
         );
 
         $tenant->settings()->firstOrCreate(

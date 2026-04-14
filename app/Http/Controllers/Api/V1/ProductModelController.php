@@ -7,6 +7,8 @@ use App\Jobs\GenerateModelFromImage;
 use App\Models\Product;
 use App\Models\ProductModel;
 use App\Services\ImageService;
+use App\Services\TenantPlanService;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -16,6 +18,7 @@ class ProductModelController extends Controller
 {
     public function __construct(
         private readonly ImageService $imageService,
+        private readonly TenantPlanService $tenantPlanService,
     ) {}
 
     public function uploadGlb(Request $request, int $productId): JsonResponse
@@ -107,6 +110,14 @@ class ProductModelController extends Controller
                 'generation_meta_json' => array_filter(['user_notes' => $userNotes]),
             ]
         );
+
+        try {
+            $this->tenantPlanService->consumeImageTo3dGenerationOrFail($tenant);
+        } catch (HttpResponseException $e) {
+            $model->delete();
+
+            throw $e;
+        }
 
         GenerateModelFromImage::dispatch($model)->afterResponse();
 
@@ -202,6 +213,20 @@ class ProductModelController extends Controller
             'generation_status' => 'queued',
             'generation_meta_json' => array_filter(['user_notes' => $existingNotes]),
         ]);
+
+        try {
+            $this->tenantPlanService->consumeImageTo3dGenerationOrFail($tenant);
+        } catch (HttpResponseException $e) {
+            $model->update([
+                'generation_status' => 'failed',
+                'generation_meta_json' => array_merge(
+                    $model->generation_meta_json ?? [],
+                    ['quota_error' => 'generation_limit_reached']
+                ),
+            ]);
+
+            throw $e;
+        }
 
         GenerateModelFromImage::dispatch($model)->afterResponse();
 
