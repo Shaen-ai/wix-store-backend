@@ -66,6 +66,7 @@ class WixController extends Controller
 
             case 'PaidPlanPurchased':
             case 'PaidPlanChanged':
+            case 'PlanConvertedToPaid':
                 $this->handlePlanUpgrade($instanceId, $eventData);
                 break;
 
