@@ -108,7 +108,7 @@ class TenantPlanService
             if ($count >= $limit) {
                 throw new HttpResponseException(response()->json([
                     'error' => 'generation_limit_reached',
-                    'message' => "You've reached your plan's limit of {$limit} image-to-3D generations this month. Upgrade for more.",
+                    'message' => "You've reached your plan's limit of {$limit} image-to-3D generations this month. Upgrade for more. If something seems wrong, contact us at info@nextechspires.com.",
                 ], 422));
             }
 
