@@ -11,8 +11,8 @@ use App\Services\TenantPlanService;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ProductModelController extends Controller
 {
@@ -237,7 +237,7 @@ class ProductModelController extends Controller
         ]);
     }
 
-    public function downloadGlb(Request $request, int $productId): Response
+    public function downloadGlb(Request $request, int $productId): StreamedResponse
     {
         $tenant = $request->attributes->get('tenant');
         $product = Product::where('tenant_id', $tenant->id)->findOrFail($productId);
@@ -252,14 +252,13 @@ class ProductModelController extends Controller
             abort(404);
         }
 
-        $content = $disk->get($model->glb_path);
         $filename = basename($model->glb_path);
         $disposition = $request->query('download') ? 'attachment' : 'inline';
 
-        return response($content, 200, [
+        // Stream from disk/S3 instead of buffering the whole file in memory (faster TTFB).
+        return $disk->response($model->glb_path, $filename, [
             'Content-Type' => 'model/gltf-binary',
-            'Content-Disposition' => $disposition . '; filename="' . $filename . '"',
             'Cache-Control' => 'private, max-age=3600',
-        ]);
+        ], $disposition);
     }
 }
