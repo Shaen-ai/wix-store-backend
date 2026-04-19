@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CheckoutField;
 use App\Models\Tenant;
 use App\Models\WixWebhook;
 use App\Services\TenantPlanService;
@@ -121,6 +122,8 @@ class WixController extends Controller
             ['tenant_id' => $tenant->id],
             ['base_currency' => 'EUR']
         );
+
+        CheckoutField::seedDefaults($tenant->id);
     }
 
     private function handleAppRemoved(string $instanceId): void

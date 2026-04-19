@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Mail\OrderConfirmationMail;
 use App\Mail\OrderPaidMail;
 use App\Models\Order;
 use App\Services\PayPalService;
@@ -133,14 +134,28 @@ class PayPalIpnController extends Controller
 
         Log::info('PayPal IPN: orders marked as paid', ['orderIds' => $orderIds, 'txnId' => $txnId]);
 
-        // 8. Send email notification for each order
-        if ($settings->notification_email) {
-            foreach (Order::whereIn('id', $orderIds)->with('product')->get() as $paidOrder) {
+        // 8. Send email notifications for each order
+        $paidOrders = Order::whereIn('id', $orderIds)->with('product')->get();
+
+        foreach ($paidOrders as $paidOrder) {
+            // Merchant notification
+            if ($settings->notification_email) {
                 try {
                     Mail::to($settings->notification_email)
                         ->send(new OrderPaidMail($paidOrder));
                 } catch (\Throwable $e) {
                     Log::error('Failed to send order paid email', ['error' => $e->getMessage()]);
+                }
+            }
+
+            // Buyer confirmation
+            $buyerEmail = $paidOrder->buyer_email ?? $payerEmail;
+            if ($buyerEmail) {
+                try {
+                    Mail::to($buyerEmail)
+                        ->send(new OrderConfirmationMail($paidOrder));
+                } catch (\Throwable $e) {
+                    Log::error('Failed to send buyer confirmation email', ['error' => $e->getMessage()]);
                 }
             }
         }

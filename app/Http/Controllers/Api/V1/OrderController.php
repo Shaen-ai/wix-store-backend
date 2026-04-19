@@ -3,9 +3,12 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Mail\OrderShippedMail;
 use App\Models\Order;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class OrderController extends Controller
@@ -26,12 +29,18 @@ class OrderController extends Controller
             'product' => $o->product ? ['id' => $o->product->id, 'title' => $o->product->title] : null,
             'quantity' => $o->quantity,
             'buyer_email' => $o->buyer_email,
+            'buyer_name' => $o->buyer_name,
+            'buyer_phone' => $o->buyer_phone,
+            'buyer_details_json' => $o->buyer_details_json,
             'currency' => $o->currency,
             'amount_cents' => $o->amount_cents,
             'fx_rate_used' => $o->fx_rate_used,
             'provider' => $o->provider,
             'provider_payment_id' => $o->provider_payment_id,
             'status' => $o->status,
+            'tracking_number' => $o->tracking_number,
+            'shipped_at' => $o->shipped_at?->toISOString(),
+            'delivered_at' => $o->delivered_at?->toISOString(),
             'created_at' => $o->created_at?->toISOString(),
             'updated_at' => $o->updated_at?->toISOString(),
         ]);
@@ -47,6 +56,40 @@ class OrderController extends Controller
         ]);
     }
 
+    public function updateShipping(Request $request, int $id): JsonResponse
+    {
+        $tenant = $request->attributes->get('tenant');
+
+        $order = Order::where('tenant_id', $tenant->id)->findOrFail($id);
+
+        $validated = $request->validate([
+            'status' => 'required|in:processing,shipped,delivered',
+            'tracking_number' => 'nullable|string|max:255',
+        ]);
+
+        $wasNotShipped = !in_array($order->status, ['shipped', 'delivered']);
+        $nowShipped = $validated['status'] === 'shipped';
+
+        $order->update([
+            'status' => $validated['status'],
+            'tracking_number' => $validated['tracking_number'] ?? $order->tracking_number,
+            'shipped_at' => $nowShipped && !$order->shipped_at ? now() : $order->shipped_at,
+            'delivered_at' => $validated['status'] === 'delivered' && !$order->delivered_at ? now() : $order->delivered_at,
+        ]);
+
+        // Send shipping notification to buyer when marking as shipped
+        if ($wasNotShipped && $nowShipped && $order->buyer_email) {
+            try {
+                Mail::to($order->buyer_email)
+                    ->send(new OrderShippedMail($order->load('product')));
+            } catch (\Throwable $e) {
+                Log::error('Failed to send order shipped email', ['error' => $e->getMessage()]);
+            }
+        }
+
+        return response()->json(['data' => $order]);
+    }
+
     public function exportCsv(Request $request): StreamedResponse
     {
         $tenant = $request->attributes->get('tenant');
@@ -58,7 +101,7 @@ class OrderController extends Controller
 
         return response()->streamDownload(function () use ($orders) {
             $handle = fopen('php://output', 'w');
-            fputcsv($handle, ['ID', 'Product', 'Quantity', 'Amount', 'Currency', 'Status', 'Buyer Email', 'PayPal TXN', 'Date']);
+            fputcsv($handle, ['ID', 'Product', 'Quantity', 'Amount', 'Currency', 'Status', 'Buyer Name', 'Buyer Email', 'Buyer Phone', 'Tracking', 'PayPal TXN', 'Date']);
 
             foreach ($orders as $o) {
                 fputcsv($handle, [
@@ -68,7 +111,10 @@ class OrderController extends Controller
                     number_format($o->amount_cents / 100, 2),
                     $o->currency,
                     $o->status,
+                    $o->buyer_name ?? '',
                     $o->buyer_email ?? '',
+                    $o->buyer_phone ?? '',
+                    $o->tracking_number ?? '',
                     $o->provider_payment_id ?? '',
                     $o->created_at?->toDateTimeString(),
                 ]);

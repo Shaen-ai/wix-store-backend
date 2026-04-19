@@ -37,9 +37,27 @@ return [
             'enable_pbr' => filter_var(env('MESHY_ENABLE_PBR', false), FILTER_VALIDATE_BOOLEAN),
             /** Used when model_type is standard only. */
             'ai_model' => env('MESHY_AI_MODEL', 'latest'),
-            'should_remesh' => filter_var(env('MESHY_SHOULD_REMESH', true), FILTER_VALIDATE_BOOLEAN),
+            /**
+             * When false (Meshy-6 default): highest-precision mesh; when true: decimate to target_polycount.
+             * Remesh rounds corners — keep false for silhouette fidelity unless you need a fixed triangle budget.
+             */
+            'should_remesh' => filter_var(env('MESHY_SHOULD_REMESH', false), FILTER_VALIDATE_BOOLEAN),
             'topology' => env('MESHY_TOPOLOGY', 'triangle'),
-            'target_polycount' => (int) env('MESHY_TARGET_POLYCOUNT', 5000),
+            /** Meshy default is 30000; low values (e.g. 5000) flatten detail. */
+            'target_polycount' => (int) env('MESHY_TARGET_POLYCOUNT', 30_000),
+            /**
+             * Meshy-6 / latest only. When false, input is not "optimized" — preserves silhouette vs. reference photo.
+             * @see https://docs.meshy.ai/api/image-to-3d (image_enhancement)
+             */
+            'image_enhancement' => filter_var(env('MESHY_IMAGE_ENHANCEMENT', false), FILTER_VALIDATE_BOOLEAN),
+            /** Optional: off | auto | on — empty uses API default (auto). Use `off` if symmetry distorts asymmetric objects. */
+            'symmetry_mode' => env('MESHY_SYMMETRY_MODE', ''),
+            /**
+             * When should_remesh is true, ask Meshy to keep the high-detail GLB (needed for prefer_pre_remeshed_glb).
+             */
+            'save_pre_remeshed_model' => filter_var(env('MESHY_SAVE_PRE_REMESHED_MODEL', false), FILTER_VALIDATE_BOOLEAN),
+            /** Prefer downloading pre_remeshed_model.glb (sharper) when remesh is enabled and Meshy returned it. */
+            'prefer_pre_remeshed_glb' => filter_var(env('MESHY_PREFER_PRE_REMESHED_GLB', false), FILTER_VALIDATE_BOOLEAN),
         ],
     ],
 ];

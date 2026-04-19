@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\CheckoutController;
+use App\Http\Controllers\Api\V1\CheckoutFieldController;
 use App\Http\Controllers\WixController;
 use App\Http\Controllers\Api\V1\OrderController;
 use App\Http\Controllers\Api\V1\PayPalIpnController;
@@ -49,9 +50,17 @@ Route::prefix('v1')->group(function () {
         Route::post('products/{productId}/model/retry', [ProductModelController::class, 'retry']);
         Route::get('products/{productId}/model/glb', [ProductModelController::class, 'downloadGlb']);
 
+        // Checkout Fields
+        Route::get('checkout-fields', [CheckoutFieldController::class, 'index']);
+        Route::post('checkout-fields', [CheckoutFieldController::class, 'store']);
+        Route::put('checkout-fields/reorder', [CheckoutFieldController::class, 'reorder']);
+        Route::put('checkout-fields/{id}', [CheckoutFieldController::class, 'update']);
+        Route::delete('checkout-fields/{id}', [CheckoutFieldController::class, 'destroy']);
+
         // Orders
         Route::get('orders', [OrderController::class, 'index']);
         Route::get('orders/export.csv', [OrderController::class, 'exportCsv']);
+        Route::put('orders/{id}/shipping', [OrderController::class, 'updateShipping']);
 
         // Checkout
         Route::post('checkout/paypal', [CheckoutController::class, 'paypal'])

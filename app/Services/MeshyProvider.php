@@ -62,7 +62,6 @@ class MeshyProvider implements ImageTo3DProvider
         $shouldTexture = (bool) ($cfg['should_texture'] ?? true);
         $enablePbr = (bool) ($cfg['enable_pbr'] ?? false);
 
-        // Aligned with mebel/metrics_platform api/meshy/generate: GLB-only, texture on, PBR off, remesh + triangle + polycount.
         $payload = [
             'image_url' => $imageUrl,
             'target_formats' => ['glb'],
@@ -76,14 +75,35 @@ class MeshyProvider implements ImageTo3DProvider
             $payload['model_type'] = 'lowpoly';
         } else {
             $payload['model_type'] = 'standard';
-            $payload['ai_model'] = in_array($cfg['ai_model'] ?? 'latest', ['meshy-5', 'meshy-6', 'latest'], true)
-                ? ($cfg['ai_model'] ?? 'latest')
-                : 'latest';
-            $payload['should_remesh'] = (bool) ($cfg['should_remesh'] ?? true);
-            $topology = ($cfg['topology'] ?? 'triangle') === 'quad' ? 'quad' : 'triangle';
-            $payload['topology'] = $topology;
-            $poly = (int) ($cfg['target_polycount'] ?? 5000);
-            $payload['target_polycount'] = max(100, min(300_000, $poly));
+            $aiModel = $cfg['ai_model'] ?? 'latest';
+            $aiModel = in_array($aiModel, ['meshy-5', 'meshy-6', 'latest'], true) ? $aiModel : 'latest';
+            $payload['ai_model'] = $aiModel;
+
+            // Preserve reference silhouette: Meshy defaults image_enhancement=true which reprocesses the photo.
+            if (in_array($aiModel, ['meshy-6', 'latest'], true)) {
+                $payload['image_enhancement'] = (bool) ($cfg['image_enhancement'] ?? false);
+            }
+
+            $shouldRemesh = (bool) ($cfg['should_remesh'] ?? false);
+            $payload['should_remesh'] = $shouldRemesh;
+
+            if ($shouldRemesh) {
+                $topology = ($cfg['topology'] ?? 'triangle') === 'quad' ? 'quad' : 'triangle';
+                $payload['topology'] = $topology;
+                $poly = (int) ($cfg['target_polycount'] ?? 30_000);
+                $payload['target_polycount'] = max(100, min(300_000, $poly));
+            }
+
+            $sym = trim((string) ($cfg['symmetry_mode'] ?? ''));
+            if ($sym !== '' && in_array($sym, ['off', 'auto', 'on'], true)) {
+                $payload['symmetry_mode'] = $sym;
+            }
+
+            $savePre = (bool) ($cfg['save_pre_remeshed_model'] ?? false)
+                || (bool) ($cfg['prefer_pre_remeshed_glb'] ?? false);
+            if ($shouldRemesh && $savePre) {
+                $payload['save_pre_remeshed_model'] = true;
+            }
         }
 
         $texturePrompt = $texturePrompt !== null ? trim($texturePrompt) : '';
@@ -115,7 +135,15 @@ class MeshyProvider implements ImageTo3DProvider
             'FAILED' => 'failed',
         ];
 
-        $glbUrl = $data['model_urls']['glb'] ?? $data['model_url'] ?? null;
+        $modelUrls = is_array($data['model_urls'] ?? null) ? $data['model_urls'] : [];
+        $glbUrl = $modelUrls['glb'] ?? $data['model_url'] ?? null;
+
+        if (
+            (bool) config('services.image_to_3d.meshy.prefer_pre_remeshed_glb', false)
+            && !empty($modelUrls['pre_remeshed_glb'])
+        ) {
+            $glbUrl = $modelUrls['pre_remeshed_glb'];
+        }
 
         return [
             'status' => $statusMap[$providerStatus] ?? 'processing',

@@ -23,6 +23,10 @@ class CheckoutController extends Controller
             'productId' => 'required|integer',
             'qty' => 'required|integer|min:1|max:100',
             'currency' => 'required|string|size:3',
+            'buyer_name' => 'nullable|string|max:255',
+            'buyer_email' => 'nullable|email|max:255',
+            'buyer_phone' => 'nullable|string|max:50',
+            'buyer_details' => 'nullable|array',
         ]);
 
         $product = Product::where('tenant_id', $tenant->id)
@@ -49,6 +53,10 @@ class CheckoutController extends Controller
             'tenant_id' => $tenant->id,
             'product_id' => $product->id,
             'quantity' => $qty,
+            'buyer_email' => $validated['buyer_email'] ?? null,
+            'buyer_name' => $validated['buyer_name'] ?? null,
+            'buyer_phone' => $validated['buyer_phone'] ?? null,
+            'buyer_details_json' => $validated['buyer_details'] ?? null,
             'currency' => $currency,
             'amount_cents' => $amountCents,
             'fx_rate_used' => null,
@@ -78,6 +86,10 @@ class CheckoutController extends Controller
             'items.*.productId' => 'required|integer',
             'items.*.qty' => 'required|integer|min:1|max:100',
             'currency' => 'required|string|size:3',
+            'buyer_name' => 'nullable|string|max:255',
+            'buyer_email' => 'nullable|email|max:255',
+            'buyer_phone' => 'nullable|string|max:50',
+            'buyer_details' => 'nullable|array',
         ]);
 
         $settings = $tenant->settings;
@@ -93,6 +105,13 @@ class CheckoutController extends Controller
             return response()->json(['error' => 'Store accepts payments in ' . $baseCurrency . ' only'], 422);
         }
 
+        $buyerData = [
+            'buyer_email' => $validated['buyer_email'] ?? null,
+            'buyer_name' => $validated['buyer_name'] ?? null,
+            'buyer_phone' => $validated['buyer_phone'] ?? null,
+            'buyer_details_json' => $validated['buyer_details'] ?? null,
+        ];
+
         $orders = [];
 
         foreach ($validated['items'] as $item) {
@@ -103,7 +122,7 @@ class CheckoutController extends Controller
             $qty = $item['qty'];
             $amountCents = $product->base_price_cents * $qty;
 
-            $order = Order::create([
+            $order = Order::create(array_merge($buyerData, [
                 'tenant_id' => $tenant->id,
                 'product_id' => $product->id,
                 'quantity' => $qty,
@@ -112,7 +131,7 @@ class CheckoutController extends Controller
                 'fx_rate_used' => null,
                 'provider' => 'paypal',
                 'status' => 'pending',
-            ]);
+            ]));
 
             $orders[] = $order->load('product');
         }
