@@ -78,24 +78,29 @@ class OrderController extends Controller
             'delivered_at' => $newStatus === 'delivered' && !$order->delivered_at ? now() : $order->delivered_at,
         ]);
 
-        if ($order->buyer_email) {
-            $order->load('product');
+        $order->load('product');
+        $recipients = $order->allBuyerEmails();
 
+        if (!empty($recipients)) {
             // Send shipping notification when marking as shipped
             if ($newStatus === 'shipped' && !in_array($previousStatus, ['shipped', 'delivered'])) {
-                try {
-                    Mail::to($order->buyer_email)->send(new OrderShippedMail($order));
-                } catch (\Throwable $e) {
-                    Log::error('Failed to send order shipped email', ['error' => $e->getMessage()]);
+                foreach ($recipients as $email) {
+                    try {
+                        Mail::to($email)->send(new OrderShippedMail($order));
+                    } catch (\Throwable $e) {
+                        Log::error('Failed to send order shipped email', ['email' => $email, 'error' => $e->getMessage()]);
+                    }
                 }
             }
 
             // Send delivery confirmation when marking as delivered
             if ($newStatus === 'delivered' && $previousStatus !== 'delivered') {
-                try {
-                    Mail::to($order->buyer_email)->send(new OrderDeliveredMail($order));
-                } catch (\Throwable $e) {
-                    Log::error('Failed to send order delivered email', ['error' => $e->getMessage()]);
+                foreach ($recipients as $email) {
+                    try {
+                        Mail::to($email)->send(new OrderDeliveredMail($order));
+                    } catch (\Throwable $e) {
+                        Log::error('Failed to send order delivered email', ['email' => $email, 'error' => $e->getMessage()]);
+                    }
                 }
             }
         }

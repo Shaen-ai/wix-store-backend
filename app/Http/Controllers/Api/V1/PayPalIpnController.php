@@ -109,7 +109,7 @@ class PayPalIpnController extends Controller
             return response('OK', 200);
         }
 
-        // 7. Atomically mark all orders as paid
+        // 7. Atomically mark all orders as paid (preserve form email, store PayPal payer email in details)
         $updated = DB::transaction(function () use ($orderIds, $txnId, $payerEmail) {
             $lockedOrders = Order::whereIn('id', $orderIds)->lockForUpdate()->get();
             $anyUnpaid = $lockedOrders->contains(fn ($o) => $o->status !== 'paid');
@@ -118,11 +118,25 @@ class PayPalIpnController extends Controller
                 return false;
             }
 
-            Order::whereIn('id', $orderIds)->update([
-                'status' => 'paid',
-                'provider_payment_id' => $txnId,
-                'buyer_email' => $payerEmail,
-            ]);
+            foreach ($lockedOrders as $lockedOrder) {
+                $update = [
+                    'status' => 'paid',
+                    'provider_payment_id' => $txnId,
+                ];
+
+                if (!$lockedOrder->buyer_email) {
+                    $update['buyer_email'] = $payerEmail;
+                }
+
+                // Store PayPal payer email in buyer_details_json so allBuyerEmails() can find both
+                if ($payerEmail) {
+                    $details = $lockedOrder->buyer_details_json ?? [];
+                    $details['paypal_email'] = $payerEmail;
+                    $update['buyer_details_json'] = $details;
+                }
+
+                $lockedOrder->update($update);
+            }
 
             return true;
         });
@@ -148,14 +162,13 @@ class PayPalIpnController extends Controller
                 }
             }
 
-            // Buyer confirmation
-            $buyerEmail = $paidOrder->buyer_email ?? $payerEmail;
-            if ($buyerEmail) {
+            // Buyer confirmation — send to all unique emails (form + PayPal)
+            $paidOrder->refresh();
+            foreach ($paidOrder->allBuyerEmails() as $recipient) {
                 try {
-                    Mail::to($buyerEmail)
-                        ->send(new OrderConfirmationMail($paidOrder));
+                    Mail::to($recipient)->send(new OrderConfirmationMail($paidOrder));
                 } catch (\Throwable $e) {
-                    Log::error('Failed to send buyer confirmation email', ['error' => $e->getMessage()]);
+                    Log::error('Failed to send buyer confirmation email', ['email' => $recipient, 'error' => $e->getMessage()]);
                 }
             }
         }

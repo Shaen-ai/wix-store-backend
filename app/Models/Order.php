@@ -44,4 +44,23 @@ class Order extends Model
     {
         return $this->belongsTo(Product::class);
     }
+
+    /**
+     * All unique buyer email addresses (form email, primary buyer_email, and PayPal payer email).
+     */
+    public function allBuyerEmails(): array
+    {
+        $details = $this->buyer_details_json ?? [];
+
+        return collect([
+                $this->buyer_email,
+                $details['email'] ?? null,
+                $details['paypal_email'] ?? null,
+            ])
+            ->filter()
+            ->map(fn ($e) => strtolower(trim($e)))
+            ->unique()
+            ->values()
+            ->all();
+    }
 }
