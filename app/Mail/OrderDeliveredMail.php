@@ -9,7 +9,7 @@ use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
-class OrderPaidMail extends Mailable
+class OrderDeliveredMail extends Mailable
 {
     use Queueable, SerializesModels;
 
@@ -20,20 +20,20 @@ class OrderPaidMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: "New Order Paid – #{$this->order->id}",
+            subject: "Your Order #{$this->order->id} Has Been Delivered!",
         );
     }
 
     public function content(): Content
     {
+        $details = $this->order->buyer_details_json ?? [];
+
         return new Content(
-            view: 'emails.order-paid',
+            view: 'emails.order-delivered',
             with: [
                 'order' => $this->order,
                 'product' => $this->order->product,
-                'amount' => number_format($this->order->amount_cents / 100, 2),
-                'currency' => $this->order->currency,
-                'buyerDetails' => $this->order->buyer_details_json ?? [],
+                'buyerName' => $this->order->buyer_name ?? ($details['full_name'] ?? 'Valued Customer'),
             ],
         );
     }

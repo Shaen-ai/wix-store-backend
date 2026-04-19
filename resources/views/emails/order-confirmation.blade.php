@@ -2,77 +2,89 @@
 <html>
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Order Confirmation</title>
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #333; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9fafb; }
-        .card { background: white; border-radius: 12px; overflow: hidden; border: 1px solid #e5e7eb; }
-        .header { background: linear-gradient(135deg, #4f46e5, #6366f1); color: white; padding: 28px 24px; }
-        .header h1 { margin: 0; font-size: 20px; font-weight: 700; }
-        .header p { margin: 6px 0 0; opacity: 0.85; font-size: 14px; }
-        .body { padding: 24px; }
-        .section { margin-bottom: 20px; }
-        .section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; margin-bottom: 10px; }
-        .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6; font-size: 14px; }
-        .detail-row:last-child { border-bottom: none; }
-        .detail-label { color: #6b7280; }
-        .detail-value { font-weight: 600; color: #111827; }
-        .total-row { background: #f9fafb; border-radius: 8px; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; margin-top: 12px; }
-        .total-amount { font-size: 22px; font-weight: 700; color: #4f46e5; }
-        .status-box { background: #fef3c7; border: 1px solid #fde68a; border-radius: 8px; padding: 14px 16px; margin-top: 20px; }
-        .status-box p { margin: 0; font-size: 13px; color: #92400e; }
-        .status-box strong { color: #78350f; }
-        .footer { padding: 16px 24px; text-align: center; font-size: 12px; color: #9ca3af; border-top: 1px solid #f3f4f6; }
-    </style>
 </head>
-<body>
-    <div class="card">
-        <div class="header">
-            <h1>Order Confirmed!</h1>
-            <p>Thank you for your purchase, {{ $buyerName }}.</p>
-        </div>
-        <div class="body">
-            <div class="section">
-                <div class="section-title">Order Details</div>
-                <div class="detail-row">
-                    <span class="detail-label">Order Number</span>
-                    <span class="detail-value">#{{ $order->id }}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Product</span>
-                    <span class="detail-value">{{ $product->title ?? 'N/A' }}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Quantity</span>
-                    <span class="detail-value">{{ $order->quantity }}</span>
-                </div>
-                <div class="total-row">
-                    <span style="font-size: 14px; font-weight: 600; color: #374151;">Total Paid</span>
-                    <span class="total-amount">{{ $currency }} {{ $amount }}</span>
-                </div>
-            </div>
+<body style="margin: 0; padding: 0; background-color: #f3f4f6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #f3f4f6;">
+        <tr>
+            <td align="center" style="padding: 32px 16px;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width: 560px; background: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e5e7eb;">
 
-            @if(!empty($buyerDetails))
-            <div class="section">
-                <div class="section-title">Shipping Information</div>
-                @foreach($buyerDetails as $key => $value)
-                    @if($value && !in_array($key, ['email']))
-                    <div class="detail-row">
-                        <span class="detail-label">{{ ucwords(str_replace('_', ' ', $key)) }}</span>
-                        <span class="detail-value">{{ $value }}</span>
-                    </div>
-                    @endif
-                @endforeach
-            </div>
-            @endif
+                    <!-- Header -->
+                    <tr>
+                        <td style="background: linear-gradient(135deg, #4f46e5, #6366f1); padding: 32px 28px;">
+                            <h1 style="margin: 0; font-size: 22px; font-weight: 700; color: #ffffff;">Order Confirmed!</h1>
+                            <p style="margin: 8px 0 0; font-size: 15px; color: rgba(255,255,255,0.85); line-height: 1.5;">Thank you for your purchase, {{ $buyerName }}.</p>
+                        </td>
+                    </tr>
 
-            <div class="status-box">
-                <p><strong>What happens next?</strong></p>
-                <p>Your order is being prepared. You will receive a shipping notification with tracking details once your order has been dispatched.</p>
-            </div>
-        </div>
-        <div class="footer">
-            This is an automated confirmation from your purchase. If you have questions, please contact the store directly.
-        </div>
-    </div>
+                    <!-- Body -->
+                    <tr>
+                        <td style="padding: 28px;">
+
+                            <!-- Order Details Section -->
+                            <p style="margin: 0 0 12px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280;">Order Details</p>
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 20px;">
+                                <tr>
+                                    <td style="padding: 10px 0; border-bottom: 1px solid #f3f4f6; font-size: 14px; color: #6b7280; width: 45%;">Order Number</td>
+                                    <td style="padding: 10px 0; border-bottom: 1px solid #f3f4f6; font-size: 14px; font-weight: 600; color: #111827; text-align: right;">#{{ $order->id }}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 10px 0; border-bottom: 1px solid #f3f4f6; font-size: 14px; color: #6b7280;">Product</td>
+                                    <td style="padding: 10px 0; border-bottom: 1px solid #f3f4f6; font-size: 14px; font-weight: 600; color: #111827; text-align: right;">{{ $product->title ?? 'N/A' }}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 10px 0; font-size: 14px; color: #6b7280;">Quantity</td>
+                                    <td style="padding: 10px 0; font-size: 14px; font-weight: 600; color: #111827; text-align: right;">{{ $order->quantity }}</td>
+                                </tr>
+                            </table>
+
+                            <!-- Total -->
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background: #f9fafb; border-radius: 8px; margin-bottom: 24px;">
+                                <tr>
+                                    <td style="padding: 14px 18px; font-size: 14px; font-weight: 600; color: #374151;">Total Paid</td>
+                                    <td style="padding: 14px 18px; font-size: 22px; font-weight: 700; color: #4f46e5; text-align: right;">{{ $currency }} {{ $amount }}</td>
+                                </tr>
+                            </table>
+
+                            <!-- Shipping Information -->
+                            @if(!empty($buyerDetails))
+                            <p style="margin: 0 0 12px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280;">Shipping Information</p>
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 24px;">
+                                @foreach($buyerDetails as $key => $value)
+                                    @if($value && !in_array($key, ['email']))
+                                    <tr>
+                                        <td style="padding: 8px 0; border-bottom: 1px solid #f3f4f6; font-size: 14px; color: #6b7280; width: 45%;">{{ ucwords(str_replace('_', ' ', $key)) }}</td>
+                                        <td style="padding: 8px 0; border-bottom: 1px solid #f3f4f6; font-size: 14px; font-weight: 600; color: #111827; text-align: right;">{{ $value }}</td>
+                                    </tr>
+                                    @endif
+                                @endforeach
+                            </table>
+                            @endif
+
+                            <!-- What happens next -->
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background: #fef3c7; border: 1px solid #fde68a; border-radius: 8px;">
+                                <tr>
+                                    <td style="padding: 16px 18px;">
+                                        <p style="margin: 0 0 6px; font-size: 14px; font-weight: 700; color: #78350f;">What happens next?</p>
+                                        <p style="margin: 0; font-size: 13px; color: #92400e; line-height: 1.5;">Your order is being prepared. You will receive a shipping notification with tracking details once your order has been dispatched.</p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding: 18px 28px; text-align: center; font-size: 12px; color: #9ca3af; border-top: 1px solid #f3f4f6;">
+                            This is an automated confirmation from your purchase. If you have questions, please contact the store directly.
+                        </td>
+                    </tr>
+
+                </table>
+            </td>
+        </tr>
+    </table>
 </body>
 </html>

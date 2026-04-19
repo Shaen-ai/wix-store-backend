@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Mail\OrderDeliveredMail;
 use App\Mail\OrderShippedMail;
 use App\Models\Order;
 use Illuminate\Http\JsonResponse;
@@ -67,23 +68,35 @@ class OrderController extends Controller
             'tracking_number' => 'nullable|string|max:255',
         ]);
 
-        $wasNotShipped = !in_array($order->status, ['shipped', 'delivered']);
-        $nowShipped = $validated['status'] === 'shipped';
+        $previousStatus = $order->status;
+        $newStatus = $validated['status'];
 
         $order->update([
-            'status' => $validated['status'],
+            'status' => $newStatus,
             'tracking_number' => $validated['tracking_number'] ?? $order->tracking_number,
-            'shipped_at' => $nowShipped && !$order->shipped_at ? now() : $order->shipped_at,
-            'delivered_at' => $validated['status'] === 'delivered' && !$order->delivered_at ? now() : $order->delivered_at,
+            'shipped_at' => $newStatus === 'shipped' && !$order->shipped_at ? now() : $order->shipped_at,
+            'delivered_at' => $newStatus === 'delivered' && !$order->delivered_at ? now() : $order->delivered_at,
         ]);
 
-        // Send shipping notification to buyer when marking as shipped
-        if ($wasNotShipped && $nowShipped && $order->buyer_email) {
-            try {
-                Mail::to($order->buyer_email)
-                    ->send(new OrderShippedMail($order->load('product')));
-            } catch (\Throwable $e) {
-                Log::error('Failed to send order shipped email', ['error' => $e->getMessage()]);
+        if ($order->buyer_email) {
+            $order->load('product');
+
+            // Send shipping notification when marking as shipped
+            if ($newStatus === 'shipped' && !in_array($previousStatus, ['shipped', 'delivered'])) {
+                try {
+                    Mail::to($order->buyer_email)->send(new OrderShippedMail($order));
+                } catch (\Throwable $e) {
+                    Log::error('Failed to send order shipped email', ['error' => $e->getMessage()]);
+                }
+            }
+
+            // Send delivery confirmation when marking as delivered
+            if ($newStatus === 'delivered' && $previousStatus !== 'delivered') {
+                try {
+                    Mail::to($order->buyer_email)->send(new OrderDeliveredMail($order));
+                } catch (\Throwable $e) {
+                    Log::error('Failed to send order delivered email', ['error' => $e->getMessage()]);
+                }
             }
         }
 
